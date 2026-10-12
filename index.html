@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ameyo Agent Performance Dashboard</title>
+  <meta name="description" content="Interactive Ameyo Agent Productivity Dashboard with campaign filtering, date selection, and export capabilities." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ============ HEADER ============ -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </div>
+      <div>
+        <h1 class="header-title">Ameyo Agent Performance Dashboard</h1>
+        <p class="header-sub">AGENT Productivity Summary • Interactive Pivot & Multi-Campaign Analyzer</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-primary" id="uploadBtn" onclick="document.getElementById('fileInput').click()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload CSV
+      </button>
+      <input type="file" id="fileInput" accept=".csv" multiple style="display:none" onchange="handleFileUpload(event)" />
+    </div>
+  </header>
+
+
+  <!-- ============ DRAG & DROP ZONE ============ -->
+  <div class="drop-zone" id="dropZone">
+    <div class="drop-zone-inner">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <p class="drop-text">Drag & drop CSV files here</p>
+      <p class="drop-sub">or click "Upload CSV" button above</p>
+    </div>
+  </div>
+
+  <!-- ============ FILTERS ============ -->
+  <div class="filters-bar" id="filtersBar" style="display:none">
+    <div class="filter-group">
+      <label class="filter-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        CAMPAIGN NAME
+      </label>
+      <div class="multiselect" id="campaignMultiselect">
+        <div class="multiselect-toggle" id="campaignToggle" onclick="toggleMultiselect()">
+          <span id="campaignToggleText">All Campaigns</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="multiselect-dropdown" id="campaignDropdown">
+          <label class="multiselect-item multiselect-all">
+            <input type="checkbox" id="campaignSelectAll" checked onchange="toggleAllCampaigns(this.checked)" />
+            <span>Select All</span>
+          </label>
+          <div id="campaignOptions"></div>
+        </div>
+      </div>
+    </div>
+    <div class="filter-group" id="dateFilterGroup">
+      <label class="filter-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        DATE
+      </label>
+      <div class="multiselect" id="dateMultiselect">
+        <div class="multiselect-toggle" id="dateToggle" onclick="toggleDateMultiselect()">
+          <span id="dateToggleText">All Dates</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="multiselect-dropdown" id="dateDropdown">
+          <label class="multiselect-item multiselect-all">
+            <input type="checkbox" id="dateSelectAll" checked onchange="toggleAllDates(this.checked)" />
+            <span>Select All</span>
+          </label>
+          <div id="dateOptions"></div>
+        </div>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label class="filter-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        SEARCH EMPLOYEE
+      </label>
+      <input type="text" id="searchEmployee" class="filter-input" placeholder="Filter by employee name..." oninput="applyFilters()" />
+    </div>
+  </div>
+
+  <!-- ============ EXPORT BUTTONS ============ -->
+  <div class="export-bar" id="exportBar" style="display:none">
+    <button class="btn btn-export" onclick="exportExcel()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export Excel (.xlsx)
+    </button>
+    <button class="btn btn-csv-export" onclick="exportCSV()">CSV</button>
+  </div>
+
+  <!-- ============ SUMMARY CARDS ============ -->
+  <div class="summary-cards" id="summaryCards" style="display:none">
+    <div class="card">
+      <span class="card-label">AVG STAFFED DURATION</span>
+      <span class="card-value" id="cardStaffed">0:00:00</span>
+      <span class="card-sub">Logged in time</span>
+    </div>
+    <div class="card">
+      <span class="card-label">AVG AUTO CALL-ON</span>
+      <span class="card-value" id="cardAutoOn">0:00:00</span>
+      <span class="card-sub">Autodial active duration</span>
+    </div>
+    <div class="card">
+      <span class="card-label">AVG AUTO CALL-OFF</span>
+      <span class="card-value" id="cardAutoOff">0:00:00</span>
+      <span class="card-sub">Autodial paused duration</span>
+    </div>
+    <div class="card">
+      <span class="card-label">AVG MANUAL TALK TIME</span>
+      <span class="card-value" id="cardManual">0:00:00</span>
+      <span class="card-sub">Manual call talk duration</span>
+    </div>
+    <div class="card">
+      <span class="card-label">AVG BREAK DURATION</span>
+      <span class="card-value" id="cardBreak">0:00:00</span>
+      <span class="card-sub">Aux / pause duration</span>
+    </div>
+  </div>
+
+  <!-- ============ DATA TABLE ============ -->
+  <div class="table-wrapper" id="tableWrapper" style="display:none">
+    <div class="table-header">
+      <h2 class="table-title">Agent Productivity Data</h2>
+      <span class="table-count" id="tableCount"></span>
+    </div>
+    <div class="table-scroll">
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th class="th-sortable" onclick="sortTable(0)">
+              <span>#</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </th>
+            <th class="th-sortable" onclick="sortTable(1)">
+              <span>Campaign Name</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </th>
+            <th class="th-sortable" onclick="sortTable(2)">
+              <span>Agent Name</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </th>
+            <th class="th-sortable" onclick="sortTable(3)">
+              <span>Total Staffed Duration</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </th>
+            <th class="th-sortable" onclick="sortTable(4)">
+              <span>Auto Call-On Duration</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </th>
+            <th class="th-sortable" onclick="sortTable(5)">
+              <span>Auto Call-Off Duration</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </th>
+            <th class="th-sortable" onclick="sortTable(6)">
+              <span>Manual Calls Talk Time</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </th>
+            <th class="th-sortable" onclick="sortTable(7)">
+              <span>Total Break Duration</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </th>
+            <th id="dateColumnHeader">
+              <span>Date</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============ EMPTY STATE ============ -->
+  <div class="empty-state" id="emptyState">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    <p>No data loaded. Upload CSV files or drag & drop them above.</p>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
