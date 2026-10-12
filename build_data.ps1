@@ -3,7 +3,8 @@ $scriptDir = "c:\Users\Dhruv Pahwa\Downloads\Ameyo_Dash"
 $files = @(
     @{ Name = "8thOct.csv"; Label = "8th October" },
     @{ Name = "9thOct.csv"; Label = "9th October" },
-    @{ Name = "10thOct.csv"; Label = "10th October" }
+    @{ Name = "10thOct.csv"; Label = "10th October" },
+    @{ Name = "12thOct.csv"; Label = "12th October" }
 )
 
 $columns = @(

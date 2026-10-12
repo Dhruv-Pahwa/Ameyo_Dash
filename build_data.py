@@ -18,6 +18,7 @@ FILES = {
     '8thOct.csv': '8th October',
     '9thOct.csv': '9th October',
     '10thOct.csv': '10th October',
+    '12thOct.csv': '12th October',
 }
 
 script_dir = os.path.dirname(os.path.abspath(__file__))

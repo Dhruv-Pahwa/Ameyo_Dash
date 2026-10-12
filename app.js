@@ -2,7 +2,7 @@
    AMEYO AGENT PERFORMANCE DASHBOARD - APP.JS
    ============================================ */
 
-const BUNDLED_FILES = ['8thOct.csv', '9thOct.csv', '10thOct.csv'];
+const BUNDLED_FILES = ['8thOct.csv', '9thOct.csv', '10thOct.csv', '12thOct.csv'];
 
 const state = {
   dataSets: [],
@@ -80,9 +80,52 @@ function extractDayNumber(dateLabel) {
   return m ? parseInt(m[1]) : 999;
 }
 
+function durToSec(t) {
+  const p = (t || '').split(':').map(Number);
+  if (p.length !== 3 || p.some(isNaN)) return 0;
+  return p[0] * 3600 + p[1] * 60 + p[2];
+}
+
+function secToDur(s) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)}`;
+}
+
+// Session-level export (one row per ready/break/auto-call segment) -> per agent + campaign summary rows.
+// Staffed = Auto Call-On + Auto Call-Off; this export has no manual talk time, so it is reported as 00:00:00.
+function summarizeSessionRows(rows) {
+  const agg = new Map();
+  const seenBreaks = new Set();
+  rows.forEach(r => {
+    const user = r['Username'];
+    const campaign = r['Campaign Name'];
+    if (!user || !campaign) return;
+    const key = user + '\u0000' + campaign;
+    if (!agg.has(key)) agg.set(key, { campaign, user, on: 0, off: 0, brk: 0 });
+    const a = agg.get(key);
+    a.on += durToSec(r['Auto Call-On Duration']);
+    a.off += durToSec(r['Auto Call-Off Duration']);
+    const breakKey = [key, r['Ready Start Time'], r['Break End Time'], r['Break Duration']].join('|');
+    if (!seenBreaks.has(breakKey)) {
+      seenBreaks.add(breakKey);
+      a.brk += durToSec(r['Break Duration']);
+    }
+  });
+  return [...agg.values()].map(a => ({
+    'Campaign Name': a.campaign,
+    'User Name': a.user,
+    'Total Staffed Duration': secToDur(a.on + a.off),
+    'Auto Call-On Duration': secToDur(a.on),
+    'Auto Call-Off Duration': secToDur(a.off),
+    'Manual Calls Talk Time': '00:00:00',
+    'Total Break Duration': secToDur(a.brk)
+  }));
+}
+
 function processCSV(text, fileName, dateLabel, isBundled) {
   const { headers, rows } = parseCSV(text);
-  const agentRows = rows.filter(r => {
+  const isSessionReport = headers.some(h => h.trim() === 'Username') && !headers.some(h => h.trim() === 'User Name');
+  const agentRows = isSessionReport ? summarizeSessionRows(rows) : rows.filter(r => {
     const pn = r['Process Name'] || '';
     const un = r['User Name'] || '';
     return pn !== 'Campaign Summary' && un !== '';
