@@ -2,7 +2,8 @@
    AMEYO AGENT PERFORMANCE DASHBOARD - APP.JS
    ============================================ */
 
-const BUNDLED_FILES = ['8thOct.csv', '9thOct.csv', '10thOct.csv', '12thOct.csv'];
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1ZU0r6Mr0WVz-AD65Jn3uPHsnnCO9ssDepIupeFmOwsA/export?format=csv';
+const SHEET_REFRESH_MS = 5 * 60 * 1000;
 
 const state = {
   dataSets: [],
@@ -14,7 +15,12 @@ const state = {
   selectedDates: new Set(),
   sortCol: null,
   sortDir: 'asc',
-  hasUserUploads: false
+  hasUserUploads: false,
+  uploadSets: [],
+  sheetSet: null,
+  sheetText: '',
+  sheetUpdated: null,
+  view: 'live' // 'live' (Google Sheet) | 'upload'
 };
 
 // ---- Init ----
@@ -30,16 +36,87 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function loadBundledFiles() {
-  for (const fname of BUNDLED_FILES) {
-    try {
-      const resp = await fetch(fname);
-      if (!resp.ok) continue;
-      const text = await resp.text();
-      const dateLabel = extractDateLabel(fname);
-      processCSV(text, fname, dateLabel, true);
-    } catch (e) {}
+  await loadSheet();
+  state.view = 'live';
+  applyView();
+  setInterval(refreshSheet, SHEET_REFRESH_MS);
+}
+
+// ---- Google Sheet source (live data) ----
+// Returns true when the sheet content changed since the last load.
+async function loadSheet() {
+  try {
+    const resp = await fetch(`${SHEET_CSV_URL}&t=${Date.now()}`, { cache: 'no-store' });
+    if (!resp.ok) return false;
+    const text = await resp.text();
+    if (text === state.sheetText) { state.sheetUpdated = new Date(); return false; }
+    const rows = extractAgentRows(text);
+    state.sheetText = text;
+    state.sheetUpdated = new Date();
+    state.sheetSet = rows.length
+      ? { fileName: 'Google Sheet', dateLabel: 'Google Sheet', rows, isBundled: false }
+      : null;
+    return true;
+  } catch (e) {
+    return false;
   }
-  if (state.dataSets.length > 0) mergeAndRender();
+}
+
+async function refreshSheet(manual) {
+  const changed = await loadSheet();
+  if (state.view === 'live') {
+    if (changed) applyView();
+  }
+  updateSourceBar();
+  if (manual === true) showToast(changed ? 'Live data updated' : 'Live data is up to date');
+}
+
+function showEmpty(message, showDrop) {
+  ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+  document.getElementById('emptyMessage').textContent = message;
+  document.getElementById('emptyState').classList.remove('hidden');
+  document.getElementById('dropZone').classList.toggle('hidden', !showDrop);
+}
+
+function applyView() {
+  if (state.view === 'live') {
+    if (state.sheetSet) {
+      state.dataSets = [state.sheetSet];
+      mergeAndRender();
+    } else {
+      state.dataSets = [];
+      showEmpty('No live data available in the Google Sheet yet.', false);
+    }
+  } else if (state.uploadSets.length > 0) {
+    state.dataSets = state.uploadSets;
+    mergeAndRender();
+  } else {
+    state.dataSets = [];
+    showEmpty('Data not uploaded', true);
+  }
+  updateSourceBar();
+}
+
+function setView(view) {
+  if (state.view === view) return;
+  state.view = view;
+  applyView();
+}
+
+function updateSourceBar() {
+  const bar = document.getElementById('sourceBar');
+  if (!bar) return;
+  const time = state.sheetUpdated ? state.sheetUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const live = state.view === 'live';
+  document.getElementById('sourceText').textContent = live
+    ? `Showing live data from Google Sheet${time ? ' · updated ' + time : ''}`
+    : (state.uploadSets.length ? 'Showing uploaded data' : 'Showing uploaded data · nothing uploaded yet');
+  document.getElementById('viewLiveBtn').classList.toggle('active', live);
+  document.getElementById('viewUploadBtn').classList.toggle('active', !live);
+  document.getElementById('sourceRefreshBtn').style.display = live ? '' : 'none';
+  bar.style.display = '';
 }
 
 // ---- CSV Parsing ----
@@ -122,14 +199,18 @@ function summarizeSessionRows(rows) {
   }));
 }
 
-function processCSV(text, fileName, dateLabel, isBundled) {
+function extractAgentRows(text) {
   const { headers, rows } = parseCSV(text);
   const isSessionReport = headers.some(h => h.trim() === 'Username') && !headers.some(h => h.trim() === 'User Name');
-  const agentRows = isSessionReport ? summarizeSessionRows(rows) : rows.filter(r => {
+  return isSessionReport ? summarizeSessionRows(rows) : rows.filter(r => {
     const pn = r['Process Name'] || '';
     const un = r['User Name'] || '';
     return pn !== 'Campaign Summary' && un !== '';
   });
+}
+
+function processCSV(text, fileName, dateLabel, isBundled) {
+  const agentRows = extractAgentRows(text);
   const existingIdx = state.dataSets.findIndex(d => d.fileName === fileName);
   if (existingIdx >= 0) {
     state.dataSets[existingIdx] = { fileName, dateLabel, rows: agentRows, isBundled };
@@ -453,6 +534,12 @@ function handleFileUpload(event) {
   event.target.value = '';
 }
 
+function finishUpload() {
+  state.uploadSets = [...state.dataSets];
+  state.view = 'upload';
+  applyView();
+}
+
 function processUploadedFiles(files) {
   // User is uploading their own files — clear bundled data and replace
   state.dataSets = [];
@@ -463,7 +550,7 @@ function processUploadedFiles(files) {
     if (!file.name.endsWith('.csv')) {
       showToast(`Skipped "${file.name}" — only CSV files are supported`);
       processed++;
-      if (processed === total) mergeAndRender();
+      if (processed === total) finishUpload();
       return;
     }
 
@@ -473,7 +560,7 @@ function processUploadedFiles(files) {
       const dateLabel = extractDateLabel(file.name);
       processCSV(text, file.name, dateLabel, false);
       processed++;
-      if (processed === total) mergeAndRender();
+      if (processed === total) finishUpload();
     };
     reader.readAsText(file);
   });

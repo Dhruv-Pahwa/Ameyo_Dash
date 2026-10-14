@@ -31,6 +31,16 @@
   </header>
 
 
+  <!-- ============ DATA SOURCE BAR ============ -->
+  <div class="source-bar" id="sourceBar" style="display:none">
+    <span id="sourceText"></span>
+    <div class="source-actions">
+      <button class="btn-source" id="sourceRefreshBtn" onclick="refreshSheet(true)">Refresh</button>
+      <button class="btn-source" id="viewLiveBtn" onclick="setView('live')">Live data</button>
+      <button class="btn-source" id="viewUploadBtn" onclick="setView('upload')">Uploaded data</button>
+    </div>
+  </div>
+
   <!-- ============ DRAG & DROP ZONE ============ -->
   <div class="drop-zone" id="dropZone">
     <div class="drop-zone-inner">
@@ -182,7 +192,7 @@
   <!-- ============ EMPTY STATE ============ -->
   <div class="empty-state" id="emptyState">
     <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-    <p>No data loaded. Upload CSV files or drag & drop them above.</p>
+    <p id="emptyMessage">Loading live data…</p>
   </div>
 
   <script src="app.js"></script>

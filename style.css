@@ -694,3 +694,46 @@ tr.summary-row td {
   from { opacity: 1; }
   to { opacity: 0; transform: translateY(16px); }
 }
+
+/* ============ DATA SOURCE BAR ============ */
+.source-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 32px 0;
+  padding: 12px 20px;
+  background: var(--accent-glow);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.source-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-source {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-source.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .source-bar { margin: 16px 16px 0; }
+}
