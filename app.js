@@ -3,6 +3,7 @@
    ============================================ */
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1ZU0r6Mr0WVz-AD65Jn3uPHsnnCO9ssDepIupeFmOwsA/export?format=csv';
+const BREAK_SHEET_URL = 'https://docs.google.com/spreadsheets/d/17ortJZIjY3O08iVyW_nryiiOQlo6K0ielPSpL1oKtf8/export?format=csv';
 const SHEET_REFRESH_MS = 5 * 60 * 1000;
 
 const state = {
@@ -20,7 +21,12 @@ const state = {
   sheetSet: null,
   sheetText: '',
   sheetUpdated: null,
-  view: 'live' // 'live' (Google Sheet) | 'upload'
+  breakText: '',
+  breakAgents: [],
+  breakReasons: [],
+  breakTotals: {},
+  breakSearch: '',
+  view: 'live' // 'live' (Google Sheet) | 'upload' | 'break'
 };
 
 // ---- Init ----
@@ -36,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function loadBundledFiles() {
-  await loadSheet();
+  await Promise.all([loadSheet(), loadBreakSheet()]);
   state.view = 'live';
   applyView();
   setInterval(refreshSheet, SHEET_REFRESH_MS);
@@ -62,16 +68,115 @@ async function loadSheet() {
   }
 }
 
-async function refreshSheet(manual) {
-  const changed = await loadSheet();
-  if (state.view === 'live') {
-    if (changed) applyView();
+// ---- Break breakdown (Google Sheet of ready/break segments) ----
+async function loadBreakSheet() {
+  try {
+    const resp = await fetch(`${BREAK_SHEET_URL}&t=${Date.now()}`, { cache: 'no-store' });
+    if (!resp.ok) return false;
+    const text = await resp.text();
+    if (text === state.breakText) return false;
+    state.breakText = text;
+    summarizeBreaks(text);
+    return true;
+  } catch (e) {
+    return false;
   }
+}
+
+// One row per agent with total break time and time/count per break reason.
+// The export repeats each break once per campaign, so identical breaks are counted once.
+function summarizeBreaks(text) {
+  const { rows } = parseCSV(text);
+  const seen = new Set();
+  const agents = new Map();
+  const totals = {};
+  rows.forEach(r => {
+    const user = r['Username'];
+    if (!user) return;
+    const secs = durToSec(r['Break Duration']);
+    if (!secs) return;
+    const key = [user, r['Ready Start Time'], r['Break End Time'], r['Break Duration']].join('|');
+    if (seen.has(key)) return;
+    seen.add(key);
+    const reason = r['Break Reason'] || 'Unspecified';
+    if (!agents.has(user)) agents.set(user, { user, total: 0, reasons: {} });
+    const a = agents.get(user);
+    a.total += secs;
+    if (!a.reasons[reason]) a.reasons[reason] = { secs: 0, count: 0 };
+    a.reasons[reason].secs += secs;
+    a.reasons[reason].count++;
+    if (!totals[reason]) totals[reason] = { secs: 0, count: 0, agents: new Set() };
+    totals[reason].secs += secs;
+    totals[reason].count++;
+    totals[reason].agents.add(user);
+  });
+  state.breakAgents = [...agents.values()].sort((a, b) => b.total - a.total);
+  state.breakTotals = totals;
+  state.breakReasons = Object.keys(totals).sort((a, b) => {
+    if (a === 'Unspecified') return 1;
+    if (b === 'Unspecified') return -1;
+    return totals[b].secs - totals[a].secs;
+  });
+}
+
+function escapeHTML(str) {
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function renderBreakView() {
+  ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+  document.getElementById('emptyState').classList.add('hidden');
+  document.getElementById('dropZone').classList.add('hidden');
+  document.getElementById('breakSection').style.display = '';
+  if (!state.breakAgents.length) {
+    document.getElementById('breakCards').innerHTML = '';
+    document.getElementById('breakHead').innerHTML = '';
+    document.getElementById('breakBody').innerHTML = '<tr><td style="padding:24px;text-align:center">No break data available in the Google Sheet yet.</td></tr>';
+    document.getElementById('breakCount').textContent = '';
+    return;
+  }
+
+  const q = state.breakSearch.trim().toLowerCase();
+  const agents = state.breakAgents.filter(a => !q || a.user.toLowerCase().includes(q));
+  const all = state.breakAgents.reduce((n, a) => n + a.total, 0);
+
+  document.getElementById('breakCards').innerHTML =
+    `<div class="card"><span class="card-label">TOTAL BREAK TIME</span><span class="card-value">${secToDur(all)}</span><span class="card-sub">${state.breakAgents.length} agents</span></div>` +
+    state.breakReasons.map(r => {
+      const t = state.breakTotals[r];
+      return `<div class="card"><span class="card-label">${escapeHTML(r.toUpperCase())}</span><span class="card-value">${secToDur(t.secs)}</span><span class="card-sub">${t.count} break${t.count === 1 ? '' : 's'} · ${t.agents.size} agent${t.agents.size === 1 ? '' : 's'}</span></div>`;
+    }).join('');
+
+  document.getElementById('breakHead').innerHTML =
+    '<tr><th>#</th><th>Agent Name</th><th>Total Break Duration</th>' +
+    state.breakReasons.map(r => `<th>${escapeHTML(r)}</th>`).join('') + '</tr>';
+
+  document.getElementById('breakBody').innerHTML = agents.map((a, i) =>
+    `<tr><td>${i + 1}</td><td>${escapeHTML(a.user)}</td><td class="dur-cell">${secToDur(a.total)}</td>` +
+    state.breakReasons.map(r => {
+      const x = a.reasons[r];
+      return x ? `<td class="dur-cell">${secToDur(x.secs)} <span class="break-count">(${x.count}×)</span></td>` : '<td class="dur-cell break-none">—</td>';
+    }).join('') + '</tr>'
+  ).join('');
+  document.getElementById('breakCount').textContent = `${agents.length} agents`;
+}
+
+function filterBreaks(value) {
+  state.breakSearch = value;
+  renderBreakView();
+}
+
+async function refreshSheet(manual) {
+  const [changed, breakChanged] = await Promise.all([loadSheet(), loadBreakSheet()]);
+  if ((state.view === 'live' && changed) || (state.view === 'break' && breakChanged)) applyView();
   updateSourceBar();
-  if (manual === true) showToast(changed ? 'Live data updated' : 'Live data is up to date');
+  if (manual === true) showToast(changed || breakChanged ? 'Data updated' : 'Data is up to date');
 }
 
 function showEmpty(message, showDrop) {
+  document.getElementById('breakSection').style.display = 'none';
   ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper'].forEach(id => {
     document.getElementById(id).style.display = 'none';
   });
@@ -81,7 +186,10 @@ function showEmpty(message, showDrop) {
 }
 
 function applyView() {
-  if (state.view === 'live') {
+  if (state.view !== 'break') document.getElementById('breakSection').style.display = 'none';
+  if (state.view === 'break') {
+    renderBreakView();
+  } else if (state.view === 'live') {
     if (state.sheetSet) {
       state.dataSets = [state.sheetSet];
       mergeAndRender();
@@ -109,13 +217,16 @@ function updateSourceBar() {
   const bar = document.getElementById('sourceBar');
   if (!bar) return;
   const time = state.sheetUpdated ? state.sheetUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-  const live = state.view === 'live';
-  document.getElementById('sourceText').textContent = live
+  const v = state.view;
+  document.getElementById('sourceText').textContent = v === 'live'
     ? `Showing live data from Google Sheet${time ? ' · updated ' + time : ''}`
-    : (state.uploadSets.length ? 'Showing uploaded data' : 'Showing uploaded data · nothing uploaded yet');
-  document.getElementById('viewLiveBtn').classList.toggle('active', live);
-  document.getElementById('viewUploadBtn').classList.toggle('active', !live);
-  document.getElementById('sourceRefreshBtn').style.display = live ? '' : 'none';
+    : v === 'break'
+      ? `Showing break breakdown from Google Sheet${time ? ' · updated ' + time : ''}`
+      : (state.uploadSets.length ? 'Showing uploaded data' : 'Showing uploaded data · nothing uploaded yet');
+  document.getElementById('viewLiveBtn').classList.toggle('active', v === 'live');
+  document.getElementById('viewBreakBtn').classList.toggle('active', v === 'break');
+  document.getElementById('viewUploadBtn').classList.toggle('active', v === 'upload');
+  document.getElementById('sourceRefreshBtn').style.display = v === 'upload' ? 'none' : '';
   bar.style.display = '';
 }
 

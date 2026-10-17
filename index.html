@@ -37,6 +37,7 @@
     <div class="source-actions">
       <button class="btn-source" id="sourceRefreshBtn" onclick="refreshSheet(true)">Refresh</button>
       <button class="btn-source" id="viewLiveBtn" onclick="setView('live')">Live data</button>
+      <button class="btn-source" id="viewBreakBtn" onclick="setView('break')">Break breakdown</button>
       <button class="btn-source" id="viewUploadBtn" onclick="setView('upload')">Uploaded data</button>
     </div>
   </div>
@@ -186,6 +187,24 @@
         </thead>
         <tbody id="tableBody"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ============ BREAK BREAKDOWN ============ -->
+  <div id="breakSection" style="display:none">
+    <div class="summary-cards" id="breakCards"></div>
+    <div class="table-wrapper">
+      <div class="table-header">
+        <h2 class="table-title">Break Breakdown by Agent</h2>
+        <input type="text" class="filter-input break-search" placeholder="Filter by employee name..." oninput="filterBreaks(this.value)" />
+        <span class="table-count" id="breakCount"></span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead id="breakHead"></thead>
+          <tbody id="breakBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
