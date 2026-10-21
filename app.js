@@ -685,12 +685,12 @@ function renderTable() {
       <td>${i + 1}</td>
       <td><span class="campaign-badge">${r['Campaign Name'] || '—'}</span></td>
       <td>${r['User Name'] || '—'}</td>
+      <td>${r._tl ? teamLeadName(r._tl) : '—'}</td>
       <td class="dur-cell">${r['Total Staffed Duration'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Auto Call-On Duration'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Auto Call-Off Duration'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Manual Calls Talk Time'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Total Break Duration'] || '00:00:00'}</td>
-      <td>${r._tl ? teamLeadName(r._tl) : '—'}</td>
       ${showDates ? `<td><span class="date-badge">${r._date || '—'}</span></td>` : ''}
     `;
     tbody.appendChild(tr);
@@ -818,7 +818,7 @@ function exportCSV() {
   if (state.filteredRows.length === 0) { showToast('No data to export'); return; }
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
-  const headers = ['#', 'Campaign Name', 'Agent Name', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Manual Calls Talk Time', 'Total Break Duration', 'Team Lead'];
+  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Manual Calls Talk Time', 'Total Break Duration'];
   if (showDates) headers.push('Date');
   const csvRows = [headers.join(',')];
 
@@ -827,12 +827,12 @@ function exportCSV() {
       i + 1,
       `"${r['Campaign Name'] || ''}"`,
       `"${r['User Name'] || ''}"`,
+      `"${r._tl ? teamLeadName(r._tl) : ''}"`,
       r['Total Staffed Duration'] || '00:00:00',
       r['Auto Call-On Duration'] || '00:00:00',
       r['Auto Call-Off Duration'] || '00:00:00',
       r['Manual Calls Talk Time'] || '00:00:00',
-      r['Total Break Duration'] || '00:00:00',
-      `"${r._tl ? teamLeadName(r._tl) : ''}"`
+      r['Total Break Duration'] || '00:00:00'
     ];
     if (showDates) row.push(r._date || '');
     csvRows.push(row.join(','));
@@ -846,7 +846,7 @@ function exportExcel() {
   if (state.filteredRows.length === 0) { showToast('No data to export'); return; }
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
-  const headers = ['#', 'Campaign Name', 'Agent Name', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Manual Calls Talk Time', 'Total Break Duration', 'Team Lead'];
+  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Manual Calls Talk Time', 'Total Break Duration'];
   if (showDates) headers.push('Date');
 
   let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
@@ -859,12 +859,12 @@ function exportExcel() {
     html += `<td>${i + 1}</td>`;
     html += `<td>${r['Campaign Name'] || ''}</td>`;
     html += `<td>${r['User Name'] || ''}</td>`;
+    html += `<td>${r._tl ? teamLeadName(r._tl) : ''}</td>`;
     html += `<td>${r['Total Staffed Duration'] || '00:00:00'}</td>`;
     html += `<td>${r['Auto Call-On Duration'] || '00:00:00'}</td>`;
     html += `<td>${r['Auto Call-Off Duration'] || '00:00:00'}</td>`;
     html += `<td>${r['Manual Calls Talk Time'] || '00:00:00'}</td>`;
     html += `<td>${r['Total Break Duration'] || '00:00:00'}</td>`;
-    html += `<td>${r._tl ? teamLeadName(r._tl) : ''}</td>`;
     if (showDates) html += `<td>${r._date || ''}</td>`;
     html += '</tr>';
   });
