@@ -26,6 +26,7 @@ const state = {
   breakReasons: [],
   breakTotals: {},
   breakSearch: '',
+  breakFiltered: [],
   leads: { main: { all: [], selected: new Set() }, break: { all: [], selected: new Set() } },
   view: 'live' // 'live' (Google Sheet) | 'upload' | 'break'
 };
@@ -240,12 +241,14 @@ function renderBreakView() {
     document.getElementById('breakHead').innerHTML = '';
     document.getElementById('breakBody').innerHTML = '<tr><td style="padding:24px;text-align:center">No break data available in the Google Sheet yet.</td></tr>';
     document.getElementById('breakCount').textContent = '';
+    state.breakFiltered = [];
     return;
   }
 
   const q = state.breakSearch.trim().toLowerCase();
   const agents = state.breakAgents.filter(a =>
     (!q || a.user.toLowerCase().includes(q)) && leadPasses('break', a.lead));
+  state.breakFiltered = agents;
   const all = state.breakAgents.reduce((n, a) => n + a.total, 0);
 
   document.getElementById('breakCards').innerHTML =
@@ -267,6 +270,42 @@ function renderBreakView() {
     }).join('') + '</tr>'
   ).join('');
   document.getElementById('breakCount').textContent = `${agents.length} agents`;
+}
+
+function breakExportTable() {
+  const headers = ['#', 'Agent Name', 'Team Lead', 'Total Break Duration'];
+  state.breakReasons.forEach(r => headers.push(`${r} Duration`, `${r} Count`));
+  const rows = state.breakFiltered.map((a, i) => {
+    const row = [i + 1, a.user, a.lead ? teamLeadName(a.lead) : '', secToDur(a.total)];
+    state.breakReasons.forEach(r => {
+      const x = a.reasons[r];
+      row.push(x ? secToDur(x.secs) : '00:00:00', x ? x.count : 0);
+    });
+    return row;
+  });
+  return { headers, rows };
+}
+
+function exportBreakCSV() {
+  if (!state.breakFiltered.length) { showToast('No data to export'); return; }
+  const { headers, rows } = breakExportTable();
+  const q = v => `"${String(v).replace(/"/g, '""')}"`;
+  const csv = [headers.map(q).join(','), ...rows.map(r => r.map(q).join(','))].join('\n');
+  downloadFile(csv, 'ameyo_break_report.csv', 'text/csv');
+  showToast('CSV exported successfully');
+}
+
+function exportBreakExcel() {
+  if (!state.breakFiltered.length) { showToast('No data to export'); return; }
+  const { headers, rows } = breakExportTable();
+  let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+  html += '<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Break Report</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>';
+  html += '<body><table border="1">';
+  html += '<tr>' + headers.map(h => `<th style="background:#2563eb;color:#fff;font-weight:bold;padding:8px">${escapeHTML(h)}</th>`).join('') + '</tr>';
+  rows.forEach(r => { html += '<tr>' + r.map(v => `<td>${escapeHTML(v)}</td>`).join('') + '</tr>'; });
+  html += '</table></body></html>';
+  downloadFile(html, 'ameyo_break_report.xls', 'application/vnd.ms-excel');
+  showToast('Excel exported successfully');
 }
 
 function filterBreaks(value) {

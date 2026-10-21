@@ -747,3 +747,5 @@ tr.summary-row td {
 
 #breakSection .table-wrapper { overflow: visible; }
 #breakSection .multiselect-dropdown { min-width: 220px; left: auto; }
+
+#breakSection .table-header { gap: 10px; flex-wrap: wrap; }

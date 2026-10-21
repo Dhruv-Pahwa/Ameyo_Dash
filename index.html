@@ -206,6 +206,8 @@
         <div class="multiselect break-lead" id="breakLeadMulti"></div>
         <input type="text" class="filter-input break-search" placeholder="Filter by employee name..." oninput="filterBreaks(this.value)" />
         <span class="table-count" id="breakCount"></span>
+        <button class="btn btn-export" onclick="exportBreakExcel()">Export Excel (.xlsx)</button>
+        <button class="btn btn-csv-export" onclick="exportBreakCSV()">CSV</button>
       </div>
       <div class="table-scroll">
         <table>
