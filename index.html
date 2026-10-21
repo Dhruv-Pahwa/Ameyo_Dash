@@ -35,6 +35,10 @@
   <div class="source-bar" id="sourceBar" style="display:none">
     <span id="sourceText"></span>
     <div class="source-actions">
+      <span id="uploadKindBox" style="display:none">
+        <button class="btn-source" id="kindProdBtn" onclick="setUploadKind('prod')">Productivity file</button>
+        <button class="btn-source" id="kindBreakBtn" onclick="setUploadKind('break')">Break file</button>
+      </span>
       <button class="btn-source" id="viewLiveBtn" onclick="setView('live')">Live data</button>
       <button class="btn-source" id="viewBreakBtn" onclick="setView('break')">Break breakdown</button>
       <button class="btn-source" id="viewUploadBtn" onclick="setView('upload')">Uploaded data</button>

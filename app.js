@@ -22,6 +22,9 @@ const state = {
   sheetText: '',
   sheetUpdated: null,
   breakText: '',
+  liveBreak: null,
+  uploadBreak: null,
+  uploadKind: 'prod', // which uploaded file type is shown: 'prod' | 'break'
   breakAgents: [],
   breakReasons: [],
   breakTotals: {},
@@ -79,7 +82,7 @@ async function loadBreakSheet() {
     const text = await resp.text();
     if (text === state.breakText) return false;
     state.breakText = text;
-    summarizeBreaks(text);
+    state.liveBreak = summarizeBreaks(parseCSV(text).rows);
     return true;
   } catch (e) {
     return false;
@@ -88,8 +91,7 @@ async function loadBreakSheet() {
 
 // One row per agent with total break time and time/count per break reason.
 // The export repeats each break once per campaign, so identical breaks are counted once.
-function summarizeBreaks(text) {
-  const { rows } = parseCSV(text);
+function summarizeBreaks(rows) {
   const seen = new Set();
   const agents = new Map();
   const totals = {};
@@ -115,14 +117,21 @@ function summarizeBreaks(text) {
     totals[reason].agents.add(user);
   });
   agents.forEach(a => a.breaks.sort((x, y) => parseSheetTime(x.start) - parseSheetTime(y.start)));
-  state.breakAgents = [...agents.values()].sort((a, b) => b.total - a.total);
-  state.breakTotals = totals;
-  populateLeadMulti('break', state.breakAgents.map(a => a.lead));
-  state.breakReasons = Object.keys(totals).sort((a, b) => {
+  const reasons = Object.keys(totals).sort((a, b) => {
     if (a === 'Unspecified') return 1;
     if (b === 'Unspecified') return -1;
     return totals[b].secs - totals[a].secs;
   });
+  return { agents: [...agents.values()].sort((a, b) => b.total - a.total), totals, reasons };
+}
+
+// Makes one break data set (live sheet or an uploaded file) the one the break view shows.
+function activateBreak(data) {
+  const d = data || { agents: [], totals: {}, reasons: [] };
+  state.breakAgents = d.agents;
+  state.breakTotals = d.totals;
+  state.breakReasons = d.reasons;
+  populateLeadMulti('break', d.agents.map(a => a.lead));
 }
 
 // ---- Team lead helpers ----
@@ -369,8 +378,13 @@ function showEmpty(message, showDrop) {
 }
 
 function applyView() {
-  if (state.view !== 'break') document.getElementById('breakSection').style.display = 'none';
+  const uploadedBreak = state.view === 'upload' && state.uploadKind === 'break' && state.uploadBreak;
+  if (state.view !== 'break' && !uploadedBreak) document.getElementById('breakSection').style.display = 'none';
   if (state.view === 'break') {
+    activateBreak(state.liveBreak);
+    renderBreakView();
+  } else if (uploadedBreak) {
+    activateBreak(state.uploadBreak);
     renderBreakView();
   } else if (state.view === 'live') {
     if (state.sheetSet) {
@@ -380,7 +394,7 @@ function applyView() {
       state.dataSets = [];
       showEmpty('No live data available in the Google Sheet yet.', false);
     }
-  } else if (state.uploadSets.length > 0) {
+  } else if (state.uploadSets.length > 0 && state.uploadKind !== 'break') {
     state.dataSets = state.uploadSets;
     mergeAndRender();
   } else {
@@ -388,6 +402,11 @@ function applyView() {
     showEmpty('Data not uploaded', true);
   }
   updateSourceBar();
+}
+
+function setUploadKind(kind) {
+  state.uploadKind = kind;
+  applyView();
 }
 
 function setView(view) {
@@ -404,10 +423,16 @@ function updateSourceBar() {
     ? 'Showing live data from Google Sheet'
     : v === 'break'
       ? 'Showing break breakdown from Google Sheet'
-      : (state.uploadSets.length ? 'Showing uploaded data' : 'Showing uploaded data · nothing uploaded yet');
+      : (!state.uploadSets.length && !state.uploadBreak ? 'Showing uploaded data · nothing uploaded yet'
+        : state.uploadKind === 'break' && state.uploadBreak ? 'Showing uploaded break data' : 'Showing uploaded data');
   document.getElementById('viewLiveBtn').classList.toggle('active', v === 'live');
   document.getElementById('viewBreakBtn').classList.toggle('active', v === 'break');
   document.getElementById('viewUploadBtn').classList.toggle('active', v === 'upload');
+  // Both kinds uploaded: let the user pick which one to look at.
+  const both = v === 'upload' && state.uploadSets.length > 0 && !!state.uploadBreak;
+  document.getElementById('uploadKindBox').style.display = both ? '' : 'none';
+  document.getElementById('kindProdBtn').classList.toggle('active', state.uploadKind !== 'break');
+  document.getElementById('kindBreakBtn').classList.toggle('active', state.uploadKind === 'break');
   bar.style.display = '';
 }
 
@@ -859,13 +884,23 @@ function handleFileUpload(event) {
 
 function finishUpload() {
   state.uploadSets = [...state.dataSets];
+  state.uploadBreak = pendingBreakRows.length ? summarizeBreaks(pendingBreakRows) : null;
+  state.uploadKind = state.uploadSets.length ? 'prod' : 'break';
   state.view = 'upload';
   applyView();
+}
+
+// Break exports list one row per break (they have a "Break Reason" column).
+let pendingBreakRows = [];
+function isBreakFile(text) {
+  const first = (text.split('\n', 1)[0] || '').replace('\uFEFF', '').replace('\r', '');
+  return first.split(',').map(h => h.trim()).includes('Break Reason');
 }
 
 function processUploadedFiles(files) {
   // User is uploading their own files — clear bundled data and replace
   state.dataSets = [];
+  pendingBreakRows = [];
   let processed = 0;
   const total = files.length;
 
@@ -880,8 +915,11 @@ function processUploadedFiles(files) {
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target.result;
-      const dateLabel = extractDateLabel(file.name);
-      processCSV(text, file.name, dateLabel, false);
+      if (isBreakFile(text)) {
+        pendingBreakRows = pendingBreakRows.concat(parseCSV(text).rows);
+      } else {
+        processCSV(text, file.name, extractDateLabel(file.name), false);
+      }
       processed++;
       if (processed === total) finishUpload();
     };
