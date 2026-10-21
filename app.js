@@ -102,17 +102,19 @@ function summarizeBreaks(text) {
     if (seen.has(key)) return;
     seen.add(key);
     const reason = r['Break Reason'] || 'Unspecified';
-    if (!agents.has(user)) agents.set(user, { user, lead: leadEmailFor(r['User ID']), total: 0, reasons: {} });
+    if (!agents.has(user)) agents.set(user, { user, lead: leadEmailFor(r['User ID']), total: 0, reasons: {}, breaks: [] });
     const a = agents.get(user);
     a.total += secs;
     if (!a.reasons[reason]) a.reasons[reason] = { secs: 0, count: 0 };
     a.reasons[reason].secs += secs;
     a.reasons[reason].count++;
+    a.breaks.push({ reason, start: r['Ready End Time'], end: r['Break End Time'], secs });
     if (!totals[reason]) totals[reason] = { secs: 0, count: 0, agents: new Set() };
     totals[reason].secs += secs;
     totals[reason].count++;
     totals[reason].agents.add(user);
   });
+  agents.forEach(a => a.breaks.sort((x, y) => parseSheetTime(x.start) - parseSheetTime(y.start)));
   state.breakAgents = [...agents.values()].sort((a, b) => b.total - a.total);
   state.breakTotals = totals;
   populateLeadMulti('break', state.breakAgents.map(a => a.lead));
@@ -225,6 +227,42 @@ function leadPasses(key, email) {
   return !!email && st.selected.has(email);
 }
 
+// "17/10/2026 10:03:57" (or with AM/PM) -> sortable number; unparseable values sort last.
+function parseSheetTime(str) {
+  const m = (str || '').match(/(\d+)\/(\d+)\/(\d+)\s+(\d+):(\d+):(\d+)\s*([AP]M)?/i);
+  if (!m) return Infinity;
+  let h = +m[4] % 12 + (m[7] && m[7].toUpperCase() === 'PM' ? 12 : 0);
+  if (!m[7]) h = +m[4];
+  return Date.UTC(+m[3], +m[2] - 1, +m[1], h, +m[5], +m[6]);
+}
+
+function timeOnly(str) {
+  const m = (str || '').match(/\d+:\d+:\d+(\s*[AP]M)?/i);
+  return m ? m[0] : '—';
+}
+
+function openBreakDetail(i) {
+  const a = state.breakFiltered[i];
+  if (!a) return;
+  const modal = document.getElementById('breakModal');
+  document.getElementById('breakModalTitle').textContent = a.user;
+  document.getElementById('breakModalSub').textContent = a.lead ? `Team Lead: ${teamLeadName(a.lead)}` : 'Team Lead: —';
+  const reasons = state.breakReasons.filter(r => a.reasons[r]);
+  document.getElementById('breakModalCards').innerHTML =
+    `<div class="card"><span class="card-label">TOTAL BREAK</span><span class="card-value">${secToDur(a.total)}</span><span class="card-sub">${a.breaks.length} break${a.breaks.length === 1 ? '' : 's'}</span></div>` +
+    reasons.map(r => `<div class="card"><span class="card-label">${escapeHTML(r.toUpperCase())}</span><span class="card-value">${secToDur(a.reasons[r].secs)}</span><span class="card-sub">${a.reasons[r].count} time${a.reasons[r].count === 1 ? '' : 's'}</span></div>`).join('');
+  document.getElementById('breakModalBody').innerHTML = a.breaks.map((b, n) =>
+    `<tr><td>${n + 1}</td><td>${escapeHTML(b.reason)}</td><td class="dur-cell">${escapeHTML(timeOnly(b.start))}</td><td class="dur-cell">${escapeHTML(timeOnly(b.end))}</td><td class="dur-cell">${secToDur(b.secs)}</td></tr>`
+  ).join('');
+  modal.classList.add('open');
+}
+
+function closeBreakDetail() {
+  document.getElementById('breakModal').classList.remove('open');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBreakDetail(); });
+
 function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -263,7 +301,7 @@ function renderBreakView() {
     state.breakReasons.map(r => `<th>${escapeHTML(r)}</th>`).join('') + '</tr>';
 
   document.getElementById('breakBody').innerHTML = agents.map((a, i) =>
-    `<tr><td>${i + 1}</td><td>${escapeHTML(a.user)}</td><td>${a.lead ? escapeHTML(teamLeadName(a.lead)) : '—'}</td><td class="dur-cell">${secToDur(a.total)}</td>` +
+    `<tr><td>${i + 1}</td><td>${escapeHTML(a.user)}</td><td>${a.lead ? escapeHTML(teamLeadName(a.lead)) : '—'}</td><td class="dur-cell">${secToDur(a.total)} <button class="info-btn" title="View break details" onclick="openBreakDetail(${i})">i</button></td>` +
     state.breakReasons.map(r => {
       const x = a.reasons[r];
       return x ? `<td class="dur-cell">${secToDur(x.secs)} <span class="break-count">(${x.count}×)</span></td>` : '<td class="dur-cell break-none">—</td>';
