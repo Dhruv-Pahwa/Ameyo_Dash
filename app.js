@@ -706,7 +706,7 @@ function applyFilters() {
   const search = document.getElementById('searchEmployee').value.toLowerCase().trim();
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
-  state.filteredRows = state.allRows.filter(r => {
+  const matched = state.allRows.filter(r => {
     if (state.selectedCampaigns.size === 0) return false;
     if (!state.selectedCampaigns.has(r['Campaign Name'])) return false;
     if (showDates) {
@@ -718,8 +718,35 @@ function applyFilters() {
     return true;
   });
 
+  state.filteredRows = mergeByAgent(matched);
   renderSummary();
   renderTable();
+}
+
+// One row per agent (and date): campaigns are listed together instead of repeating the agent.
+// Session times (staffed, auto call on/off, break) are the same in every campaign row, so the
+// largest value is used; manual talk time belongs to each campaign's calls, so it is added up.
+function mergeByAgent(rows) {
+  const SESSION = ['Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Break Duration'];
+  const groups = new Map();
+  rows.forEach(r => {
+    const key = ((r['User ID'] || r['User Name'] || '') + '|' + (r._date || '')).toLowerCase();
+    if (!groups.has(key)) {
+      groups.set(key, { ...r, _campaigns: [], _manual: 0, _session: {} });
+      SESSION.forEach(f => { groups.get(key)._session[f] = 0; });
+    }
+    const g = groups.get(key);
+    if (r['Campaign Name'] && !g._campaigns.includes(r['Campaign Name'])) g._campaigns.push(r['Campaign Name']);
+    g._manual += timeToSeconds(r['Manual Calls Talk Time']);
+    SESSION.forEach(f => { g._session[f] = Math.max(g._session[f], timeToSeconds(r[f])); });
+  });
+  return [...groups.values()].map(g => {
+    g._campaigns.sort();
+    g['Campaign Name'] = g._campaigns.join(', ');
+    g['Manual Calls Talk Time'] = secToDur(g._manual);
+    SESSION.forEach(f => { g[f] = secToDur(g._session[f]); });
+    return g;
+  });
 }
 
 // ---- Summary Cards ----
@@ -760,7 +787,7 @@ function renderTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${i + 1}</td>
-      <td><span class="campaign-badge">${r['Campaign Name'] || '—'}</span></td>
+      <td><div class="campaign-stack">${(r._campaigns && r._campaigns.length ? r._campaigns : [r['Campaign Name'] || '—']).map(c => `<span class="campaign-badge">${escapeHTML(c)}</span>`).join('')}</div></td>
       <td>${r['User Name'] || '—'}</td>
       <td>${r._tl ? teamLeadName(r._tl) : '—'}</td>
       <td class="dur-cell">${r['Total Staffed Duration'] || '00:00:00'}</td>
@@ -902,7 +929,7 @@ function exportCSV() {
   state.filteredRows.forEach((r, i) => {
     const row = [
       i + 1,
-      `"${r['Campaign Name'] || ''}"`,
+      `"${(r._campaigns || [r['Campaign Name'] || '']).join(', ')}"`,
       `"${r['User Name'] || ''}"`,
       `"${r._tl ? teamLeadName(r._tl) : ''}"`,
       r['Total Staffed Duration'] || '00:00:00',
@@ -934,7 +961,7 @@ function exportExcel() {
   state.filteredRows.forEach((r, i) => {
     html += '<tr>';
     html += `<td>${i + 1}</td>`;
-    html += `<td>${r['Campaign Name'] || ''}</td>`;
+    html += `<td>${(r._campaigns || [r['Campaign Name'] || '']).map(escapeHTML).join('<br style="mso-data-placement:same-cell;">')}</td>`;
     html += `<td>${r['User Name'] || ''}</td>`;
     html += `<td>${r._tl ? teamLeadName(r._tl) : ''}</td>`;
     html += `<td>${r['Total Staffed Duration'] || '00:00:00'}</td>`;
