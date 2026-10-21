@@ -741,3 +741,9 @@ tr.summary-row td {
 .break-search { max-width: 260px; margin-left: auto; margin-right: 12px; }
 .break-count { color: var(--text-muted); font-size: 12px; }
 .break-none { color: var(--text-muted); }
+
+.break-lead { max-width: 220px; margin-left: auto; }
+.break-lead + .break-search { margin-left: 0; }
+
+#breakSection .table-wrapper { overflow: visible; }
+#breakSection .multiselect-dropdown { min-width: 220px; left: auto; }

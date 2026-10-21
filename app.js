@@ -26,6 +26,7 @@ const state = {
   breakReasons: [],
   breakTotals: {},
   breakSearch: '',
+  leads: { main: { all: [], selected: new Set() }, break: { all: [], selected: new Set() } },
   view: 'live' // 'live' (Google Sheet) | 'upload' | 'break'
 };
 
@@ -38,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dms = document.getElementById('dateMultiselect');
     if (cms && !cms.contains(e.target)) closeCampaignMultiselect();
     if (dms && !dms.contains(e.target)) closeDateMultiselect();
+    closeLeadMultis(e.target.closest('.lead-multi'));
   });
 });
 
@@ -99,7 +101,7 @@ function summarizeBreaks(text) {
     if (seen.has(key)) return;
     seen.add(key);
     const reason = r['Break Reason'] || 'Unspecified';
-    if (!agents.has(user)) agents.set(user, { user, total: 0, reasons: {} });
+    if (!agents.has(user)) agents.set(user, { user, lead: leadEmailFor(r['User ID']), total: 0, reasons: {} });
     const a = agents.get(user);
     a.total += secs;
     if (!a.reasons[reason]) a.reasons[reason] = { secs: 0, count: 0 };
@@ -112,11 +114,114 @@ function summarizeBreaks(text) {
   });
   state.breakAgents = [...agents.values()].sort((a, b) => b.total - a.total);
   state.breakTotals = totals;
+  populateLeadMulti('break', state.breakAgents.map(a => a.lead));
   state.breakReasons = Object.keys(totals).sort((a, b) => {
     if (a === 'Unspecified') return 1;
     if (b === 'Unspecified') return -1;
     return totals[b].secs - totals[a].secs;
   });
+}
+
+// ---- Team lead helpers ----
+function leadEmailFor(userId) {
+  return TEAM_LEAD_BY_USER[(userId || '').trim().toLowerCase()] || '';
+}
+
+// Team lead multiselect. `key` is 'main' or 'break'; options are only the leads present in `emails`.
+const LEAD_UI = {
+  main: { box: 'mainLeadMulti', onChange: () => applyFilters() },
+  break: { box: 'breakLeadMulti', onChange: () => renderBreakView() }
+};
+
+function populateLeadMulti(key, emails) {
+  const st = state.leads[key];
+  const wasAll = st.selected.size === st.all.length;
+  const leads = [...new Set(emails.filter(Boolean))];
+  const names = leads.map(teamLeadName);
+  st.all = leads
+    .map((e, i) => ({ email: e, label: names.filter(n => n === names[i]).length > 1 ? `${names[i]} (${e})` : names[i] }))
+    .sort((x, y) => x.label.localeCompare(y.label));
+  st.selected = wasAll ? new Set(st.all.map(o => o.email)) : new Set(st.all.map(o => o.email).filter(e => st.selected.has(e)));
+  renderLeadMulti(key);
+}
+
+function renderLeadMulti(key) {
+  const st = state.leads[key];
+  const box = document.getElementById(LEAD_UI[key].box);
+  const wasOpen = box.querySelector('.multiselect-dropdown.open') !== null;
+  box.classList.add('lead-multi');
+  box.innerHTML = `
+    <div class="multiselect-toggle"><span></span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="multiselect-dropdown${wasOpen ? ' open' : ''}">
+      <label class="multiselect-item multiselect-all"><input type="checkbox" class="lead-all"><span>Select All</span></label>
+      <div class="lead-options"></div>
+    </div>`;
+  const toggle = box.querySelector('.multiselect-toggle');
+  const dropdown = box.querySelector('.multiselect-dropdown');
+  const allCb = box.querySelector('.lead-all');
+  const list = box.querySelector('.lead-options');
+  toggle.classList.toggle('open', wasOpen);
+  toggle.addEventListener('click', () => {
+    const open = !dropdown.classList.contains('open');
+    closeLeadMultis();
+    dropdown.classList.toggle('open', open);
+    toggle.classList.toggle('open', open);
+  });
+  st.all.forEach(o => {
+    const label = document.createElement('label');
+    label.className = 'multiselect-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = st.selected.has(o.email);
+    cb.addEventListener('change', () => {
+      if (cb.checked) st.selected.add(o.email); else st.selected.delete(o.email);
+      updateLeadMultiText(key);
+      LEAD_UI[key].onChange();
+    });
+    const span = document.createElement('span');
+    span.textContent = o.label;
+    label.appendChild(cb);
+    label.appendChild(span);
+    list.appendChild(label);
+  });
+  allCb.addEventListener('change', () => {
+    st.selected = allCb.checked ? new Set(st.all.map(o => o.email)) : new Set();
+    list.querySelectorAll('input').forEach(cb => { cb.checked = allCb.checked; });
+    updateLeadMultiText(key);
+    LEAD_UI[key].onChange();
+  });
+  updateLeadMultiText(key);
+}
+
+function updateLeadMultiText(key) {
+  const st = state.leads[key];
+  const box = document.getElementById(LEAD_UI[key].box);
+  const total = st.all.length;
+  const n = st.selected.size;
+  box.querySelector('.lead-all').checked = total > 0 && n === total;
+  let text;
+  if (total === 0 || n === total) text = 'All Team Leads';
+  else if (n === 0) text = 'No Team Leads';
+  else if (n <= 2) text = st.all.filter(o => st.selected.has(o.email)).map(o => o.label).join(', ');
+  else text = `${n} of ${total} Team Leads`;
+  box.querySelector('.multiselect-toggle span').textContent = text;
+}
+
+function closeLeadMultis(except) {
+  document.querySelectorAll('.lead-multi').forEach(box => {
+    if (box === except) return;
+    box.querySelector('.multiselect-dropdown').classList.remove('open');
+    box.querySelector('.multiselect-toggle').classList.remove('open');
+  });
+}
+
+// An agent passes when every lead is selected, or when their own lead is selected.
+function leadPasses(key, email) {
+  const st = state.leads[key];
+  if (st.selected.size === st.all.length) return true;
+  return !!email && st.selected.has(email);
 }
 
 function escapeHTML(str) {
@@ -139,7 +244,8 @@ function renderBreakView() {
   }
 
   const q = state.breakSearch.trim().toLowerCase();
-  const agents = state.breakAgents.filter(a => !q || a.user.toLowerCase().includes(q));
+  const agents = state.breakAgents.filter(a =>
+    (!q || a.user.toLowerCase().includes(q)) && leadPasses('break', a.lead));
   const all = state.breakAgents.reduce((n, a) => n + a.total, 0);
 
   document.getElementById('breakCards').innerHTML =
@@ -150,11 +256,11 @@ function renderBreakView() {
     }).join('');
 
   document.getElementById('breakHead').innerHTML =
-    '<tr><th>#</th><th>Agent Name</th><th>Total Break Duration</th>' +
+    '<tr><th>#</th><th>Agent Name</th><th>Team Lead</th><th>Total Break Duration</th>' +
     state.breakReasons.map(r => `<th>${escapeHTML(r)}</th>`).join('') + '</tr>';
 
   document.getElementById('breakBody').innerHTML = agents.map((a, i) =>
-    `<tr><td>${i + 1}</td><td>${escapeHTML(a.user)}</td><td class="dur-cell">${secToDur(a.total)}</td>` +
+    `<tr><td>${i + 1}</td><td>${escapeHTML(a.user)}</td><td>${a.lead ? escapeHTML(teamLeadName(a.lead)) : '—'}</td><td class="dur-cell">${secToDur(a.total)}</td>` +
     state.breakReasons.map(r => {
       const x = a.reasons[r];
       return x ? `<td class="dur-cell">${secToDur(x.secs)} <span class="break-count">(${x.count}×)</span></td>` : '<td class="dur-cell break-none">—</td>';
@@ -289,7 +395,7 @@ function summarizeSessionRows(rows) {
     const campaign = r['Campaign Name'];
     if (!user || !campaign) return;
     const key = user + '\u0000' + campaign;
-    if (!agg.has(key)) agg.set(key, { campaign, user, on: 0, off: 0, brk: 0 });
+    if (!agg.has(key)) agg.set(key, { campaign, user, userId: r['User ID'] || '', on: 0, off: 0, brk: 0 });
     const a = agg.get(key);
     a.on += durToSec(r['Auto Call-On Duration']);
     a.off += durToSec(r['Auto Call-Off Duration']);
@@ -302,6 +408,7 @@ function summarizeSessionRows(rows) {
   return [...agg.values()].map(a => ({
     'Campaign Name': a.campaign,
     'User Name': a.user,
+    'User ID': a.userId,
     'Total Staffed Duration': secToDur(a.on + a.off),
     'Auto Call-On Duration': secToDur(a.on),
     'Auto Call-Off Duration': secToDur(a.off),
@@ -337,7 +444,7 @@ function mergeAndRender() {
 
   state.dataSets.forEach(ds => {
     ds.rows.forEach(r => {
-      state.allRows.push({ ...r, _date: ds.isBundled ? ds.dateLabel : null });
+      state.allRows.push({ ...r, _date: ds.isBundled ? ds.dateLabel : null, _tl: leadEmailFor(r['User ID']) });
     });
   });
 
@@ -356,6 +463,7 @@ function mergeAndRender() {
   populateCampaignMultiselect();
   populateDateMultiselect();
   updateDateVisibility();
+  populateLeadMulti('main', state.allRows.map(r => r._tl));
 
   document.getElementById('filtersBar').style.display = '';
   document.getElementById('exportBar').style.display = '';
@@ -528,6 +636,7 @@ function applyFilters() {
       if (state.selectedDates.size === 0) return false;
       if (r._date && !state.selectedDates.has(r._date)) return false;
     }
+    if (!leadPasses('main', r._tl)) return false;
     if (search && !(r['User Name'] || '').toLowerCase().includes(search)) return false;
     return true;
   });
@@ -581,6 +690,7 @@ function renderTable() {
       <td class="dur-cell">${r['Auto Call-Off Duration'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Manual Calls Talk Time'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Total Break Duration'] || '00:00:00'}</td>
+      <td>${r._tl ? teamLeadName(r._tl) : '—'}</td>
       ${showDates ? `<td><span class="date-badge">${r._date || '—'}</span></td>` : ''}
     `;
     tbody.appendChild(tr);
@@ -708,7 +818,7 @@ function exportCSV() {
   if (state.filteredRows.length === 0) { showToast('No data to export'); return; }
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
-  const headers = ['#', 'Campaign Name', 'Agent Name', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Manual Calls Talk Time', 'Total Break Duration'];
+  const headers = ['#', 'Campaign Name', 'Agent Name', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Manual Calls Talk Time', 'Total Break Duration', 'Team Lead'];
   if (showDates) headers.push('Date');
   const csvRows = [headers.join(',')];
 
@@ -721,7 +831,8 @@ function exportCSV() {
       r['Auto Call-On Duration'] || '00:00:00',
       r['Auto Call-Off Duration'] || '00:00:00',
       r['Manual Calls Talk Time'] || '00:00:00',
-      r['Total Break Duration'] || '00:00:00'
+      r['Total Break Duration'] || '00:00:00',
+      `"${r._tl ? teamLeadName(r._tl) : ''}"`
     ];
     if (showDates) row.push(r._date || '');
     csvRows.push(row.join(','));
@@ -735,7 +846,7 @@ function exportExcel() {
   if (state.filteredRows.length === 0) { showToast('No data to export'); return; }
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
-  const headers = ['#', 'Campaign Name', 'Agent Name', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Manual Calls Talk Time', 'Total Break Duration'];
+  const headers = ['#', 'Campaign Name', 'Agent Name', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Manual Calls Talk Time', 'Total Break Duration', 'Team Lead'];
   if (showDates) headers.push('Date');
 
   let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
@@ -753,6 +864,7 @@ function exportExcel() {
     html += `<td>${r['Auto Call-Off Duration'] || '00:00:00'}</td>`;
     html += `<td>${r['Manual Calls Talk Time'] || '00:00:00'}</td>`;
     html += `<td>${r['Total Break Duration'] || '00:00:00'}</td>`;
+    html += `<td>${r._tl ? teamLeadName(r._tl) : ''}</td>`;
     if (showDates) html += `<td>${r._date || ''}</td>`;
     html += '</tr>';
   });

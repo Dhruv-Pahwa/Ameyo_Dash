@@ -72,6 +72,10 @@
         </div>
       </div>
     </div>
+    <div class="filter-group">
+      <label class="filter-label">TEAM LEAD</label>
+      <div class="multiselect" id="mainLeadMulti"></div>
+    </div>
     <div class="filter-group" id="dateFilterGroup">
       <label class="filter-label">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -180,6 +184,9 @@
               <span>Total Break Duration</span>
               <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </th>
+            <th>
+              <span>Team Lead</span>
+            </th>
             <th id="dateColumnHeader">
               <span>Date</span>
             </th>
@@ -196,6 +203,7 @@
     <div class="table-wrapper">
       <div class="table-header">
         <h2 class="table-title">Break Breakdown by Agent</h2>
+        <div class="multiselect break-lead" id="breakLeadMulti"></div>
         <input type="text" class="filter-input break-search" placeholder="Filter by employee name..." oninput="filterBreaks(this.value)" />
         <span class="table-count" id="breakCount"></span>
       </div>
@@ -214,6 +222,7 @@
     <p id="emptyMessage">Loading live data…</p>
   </div>
 
+  <script src="teamleads.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
