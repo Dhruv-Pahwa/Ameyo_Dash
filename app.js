@@ -399,17 +399,15 @@ function setView(view) {
 function updateSourceBar() {
   const bar = document.getElementById('sourceBar');
   if (!bar) return;
-  const time = state.sheetUpdated ? state.sheetUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   const v = state.view;
   document.getElementById('sourceText').textContent = v === 'live'
-    ? `Showing live data from Google Sheet${time ? ' · updated ' + time : ''}`
+    ? 'Showing live data from Google Sheet'
     : v === 'break'
-      ? `Showing break breakdown from Google Sheet${time ? ' · updated ' + time : ''}`
+      ? 'Showing break breakdown from Google Sheet'
       : (state.uploadSets.length ? 'Showing uploaded data' : 'Showing uploaded data · nothing uploaded yet');
   document.getElementById('viewLiveBtn').classList.toggle('active', v === 'live');
   document.getElementById('viewBreakBtn').classList.toggle('active', v === 'break');
   document.getElementById('viewUploadBtn').classList.toggle('active', v === 'upload');
-  document.getElementById('sourceRefreshBtn').style.display = v === 'upload' ? 'none' : '';
   bar.style.display = '';
 }
 
