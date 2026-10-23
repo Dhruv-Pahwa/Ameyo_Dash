@@ -183,10 +183,18 @@
               <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </th>
             <th class="th-sortable" onclick="sortTable(6)">
-              <span>Manual Calls Talk Time</span>
+              <span>Total Talk Time in Interval</span>
               <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </th>
             <th class="th-sortable" onclick="sortTable(7)">
+              <span>Manual Calls Talk Time</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </th>
+            <th class="th-sortable" onclick="sortTable(8)">
+              <span>Talk Time in Auto Dial</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </th>
+            <th class="th-sortable" onclick="sortTable(9)">
               <span>Total Break Duration</span>
               <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </th>
@@ -236,6 +244,26 @@
         <table>
           <thead><tr><th>#</th><th>Break Type</th><th>Start</th><th>End</th><th>Duration</th></tr></thead>
           <tbody id="breakModalBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TALK TIME DETAIL MODAL ============ -->
+  <div class="modal-backdrop" id="talkModal" onclick="if (event.target === this) closeTalkDetail()">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h2 class="table-title" id="talkModalTitle"></h2>
+          <span class="card-sub" id="talkModalSub"></span>
+        </div>
+        <button class="modal-close" onclick="closeTalkDetail()" aria-label="Close">&times;</button>
+      </div>
+      <div class="summary-cards" id="talkModalCards"></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>#</th><th>Campaign</th><th>Total Talk Time in Interval</th><th>Manual Calls Talk Time</th><th>Talk Time in Auto Dial</th></tr></thead>
+          <tbody id="talkModalBody"></tbody>
         </table>
       </div>
     </div>

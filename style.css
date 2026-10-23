@@ -807,3 +807,5 @@ tr.summary-row td {
 #breakSection td:nth-child(3) { color: var(--text-secondary); font-weight: 400; }
 .modal .summary-cards { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
 .modal .card { padding: 14px 16px; }
+
+tr.row-muted td { color: var(--text-muted); }

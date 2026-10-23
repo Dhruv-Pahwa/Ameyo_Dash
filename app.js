@@ -266,11 +266,42 @@ function openBreakDetail(i) {
   modal.classList.add('open');
 }
 
+// Talk time of one agent split by campaign (the table shows the total across campaigns).
+function openTalkDetail(i) {
+  const a = state.filteredRows[i];
+  if (!a) return;
+  const rows = (a._rows || []).map(r => ({
+    campaign: r['Campaign Name'] || '—',
+    total: timeToSeconds(r['Total Talk Time in Interval']),
+    manual: timeToSeconds(r['Manual Calls Talk Time']),
+    auto: Math.max(0, timeToSeconds(r['Total Talk Time in Interval']) - timeToSeconds(r['Manual Calls Talk Time']))
+  })).sort((x, y) => y.total - x.total || x.campaign.localeCompare(y.campaign));
+  const total = rows.reduce((n, r) => n + r.total, 0);
+  const manual = rows.reduce((n, r) => n + r.manual, 0);
+  const auto = rows.reduce((n, r) => n + r.auto, 0);
+  const active = rows.filter(r => r.total > 0).length;
+  document.getElementById('talkModalTitle').textContent = a['User Name'] || '—';
+  document.getElementById('talkModalSub').textContent = a._tl ? `Team Lead: ${teamLeadName(a._tl)}` : 'Team Lead: —';
+  document.getElementById('talkModalCards').innerHTML =
+    `<div class="card"><span class="card-label">TOTAL TALK TIME</span><span class="card-value">${secToDur(total)}</span><span class="card-sub">across ${rows.length} campaign${rows.length === 1 ? '' : 's'}</span></div>` +
+    `<div class="card"><span class="card-label">MANUAL TALK TIME</span><span class="card-value">${secToDur(manual)}</span><span class="card-sub">part of the total</span></div>` +
+    `<div class="card"><span class="card-label">TALK TIME IN AUTO DIAL</span><span class="card-value">${secToDur(auto)}</span><span class="card-sub">total minus manual</span></div>` +
+    `<div class="card"><span class="card-label">CAMPAIGNS WITH TALK</span><span class="card-value">${active}</span><span class="card-sub">of ${rows.length}</span></div>`;
+  document.getElementById('talkModalBody').innerHTML = rows.map((r, n) =>
+    `<tr${r.total ? '' : ' class="row-muted"'}><td>${n + 1}</td><td>${escapeHTML(r.campaign)}</td><td class="dur-cell">${secToDur(r.total)}</td><td class="dur-cell">${secToDur(r.manual)}</td><td class="dur-cell">${secToDur(r.auto)}</td></tr>`
+  ).join('');
+  document.getElementById('talkModal').classList.add('open');
+}
+
+function closeTalkDetail() {
+  document.getElementById('talkModal').classList.remove('open');
+}
+
 function closeBreakDetail() {
   document.getElementById('breakModal').classList.remove('open');
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBreakDetail(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeBreakDetail(); closeTalkDetail(); } });
 
 function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -512,7 +543,9 @@ function summarizeSessionRows(rows) {
     'Total Staffed Duration': secToDur(a.on + a.off),
     'Auto Call-On Duration': secToDur(a.on),
     'Auto Call-Off Duration': secToDur(a.off),
+    'Total Talk Time in Interval': '00:00:00',
     'Manual Calls Talk Time': '00:00:00',
+    'Talk Time in Auto Dial': '00:00:00',
     'Total Break Duration': secToDur(a.brk)
   }));
 }
@@ -750,23 +783,27 @@ function applyFilters() {
 // Session times (staffed, auto call on/off, break) are the same in every campaign row, so the
 // largest value is used; manual talk time belongs to each campaign's calls, so it is added up.
 function mergeByAgent(rows) {
+  const TALK = ['Total Talk Time in Interval', 'Manual Calls Talk Time'];
   const SESSION = ['Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Break Duration'];
   const groups = new Map();
   rows.forEach(r => {
     const key = ((r['User ID'] || r['User Name'] || '') + '|' + (r._date || '')).toLowerCase();
     if (!groups.has(key)) {
-      groups.set(key, { ...r, _campaigns: [], _manual: 0, _session: {} });
+      groups.set(key, { ...r, _campaigns: [], _rows: [], _talk: {}, _session: {} });
+      TALK.forEach(f => { groups.get(key)._talk[f] = 0; });
       SESSION.forEach(f => { groups.get(key)._session[f] = 0; });
     }
     const g = groups.get(key);
+    g._rows.push(r);
     if (r['Campaign Name'] && !g._campaigns.includes(r['Campaign Name'])) g._campaigns.push(r['Campaign Name']);
-    g._manual += timeToSeconds(r['Manual Calls Talk Time']);
+    TALK.forEach(f => { g._talk[f] += timeToSeconds(r[f]); });
     SESSION.forEach(f => { g._session[f] = Math.max(g._session[f], timeToSeconds(r[f])); });
   });
   return [...groups.values()].map(g => {
     g._campaigns.sort();
     g['Campaign Name'] = g._campaigns.join(', ');
-    g['Manual Calls Talk Time'] = secToDur(g._manual);
+    TALK.forEach(f => { g[f] = secToDur(g._talk[f]); });
+    g['Talk Time in Auto Dial'] = secToDur(Math.max(0, g._talk['Total Talk Time in Interval'] - g._talk['Manual Calls Talk Time']));
     SESSION.forEach(f => { g[f] = secToDur(g._session[f]); });
     return g;
   });
@@ -816,7 +853,9 @@ function renderTable() {
       <td class="dur-cell">${r['Total Staffed Duration'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Auto Call-On Duration'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Auto Call-Off Duration'] || '00:00:00'}</td>
+      <td class="dur-cell">${r['Total Talk Time in Interval'] || '00:00:00'} <button class="info-btn" title="Talk time by campaign" onclick="openTalkDetail(${i})">i</button></td>
       <td class="dur-cell">${r['Manual Calls Talk Time'] || '00:00:00'}</td>
+      <td class="dur-cell">${r['Talk Time in Auto Dial'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Total Break Duration'] || '00:00:00'}</td>
       ${showDates ? `<td><span class="date-badge">${r._date || '—'}</span></td>` : ''}
     `;
@@ -833,8 +872,10 @@ function sortTable(colIdx) {
     3: 'Total Staffed Duration',
     4: 'Auto Call-On Duration',
     5: 'Auto Call-Off Duration',
-    6: 'Manual Calls Talk Time',
-    7: 'Total Break Duration'
+    6: 'Total Talk Time in Interval',
+    7: 'Manual Calls Talk Time',
+    8: 'Talk Time in Auto Dial',
+    9: 'Total Break Duration'
   };
 
   const key = colMap[colIdx];
@@ -847,7 +888,7 @@ function sortTable(colIdx) {
     state.sortDir = 'asc';
   }
 
-  const isTime = colIdx >= 3 && colIdx <= 7;
+  const isTime = colIdx >= 3 && colIdx <= 9;
   const dir = state.sortDir === 'asc' ? 1 : -1;
 
   state.filteredRows.sort((a, b) => {
@@ -958,7 +999,7 @@ function exportCSV() {
   if (state.filteredRows.length === 0) { showToast('No data to export'); return; }
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
-  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Manual Calls Talk Time', 'Total Break Duration'];
+  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Break Duration'];
   if (showDates) headers.push('Date');
   const csvRows = [headers.join(',')];
 
@@ -971,7 +1012,9 @@ function exportCSV() {
       r['Total Staffed Duration'] || '00:00:00',
       r['Auto Call-On Duration'] || '00:00:00',
       r['Auto Call-Off Duration'] || '00:00:00',
+      r['Total Talk Time in Interval'] || '00:00:00',
       r['Manual Calls Talk Time'] || '00:00:00',
+      r['Talk Time in Auto Dial'] || '00:00:00',
       r['Total Break Duration'] || '00:00:00'
     ];
     if (showDates) row.push(r._date || '');
@@ -986,7 +1029,7 @@ function exportExcel() {
   if (state.filteredRows.length === 0) { showToast('No data to export'); return; }
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
-  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Manual Calls Talk Time', 'Total Break Duration'];
+  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Break Duration'];
   if (showDates) headers.push('Date');
 
   let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
@@ -1003,7 +1046,9 @@ function exportExcel() {
     html += `<td>${r['Total Staffed Duration'] || '00:00:00'}</td>`;
     html += `<td>${r['Auto Call-On Duration'] || '00:00:00'}</td>`;
     html += `<td>${r['Auto Call-Off Duration'] || '00:00:00'}</td>`;
+    html += `<td>${r['Total Talk Time in Interval'] || '00:00:00'}</td>`;
     html += `<td>${r['Manual Calls Talk Time'] || '00:00:00'}</td>`;
+    html += `<td>${r['Talk Time in Auto Dial'] || '00:00:00'}</td>`;
     html += `<td>${r['Total Break Duration'] || '00:00:00'}</td>`;
     if (showDates) html += `<td>${r._date || ''}</td>`;
     html += '</tr>';
