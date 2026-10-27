@@ -30,6 +30,7 @@ const state = {
   breakTotals: {},
   breakSearch: '',
   breakFiltered: [],
+  agentType: { main: '', break: '' }, // '' = all, otherwise 'Direct' | 'DDA' | 'none' (not in the list)
   leads: { main: { all: [], selected: new Set() }, break: { all: [], selected: new Set() } },
   view: 'live' // 'live' (Google Sheet) | 'upload' | 'break'
 };
@@ -95,16 +96,31 @@ function summarizeBreaks(rows) {
   const seen = new Set();
   const agents = new Map();
   const totals = {};
+  const segSeen = new Set();
+  const segs = new Map(); // user -> ready / auto-dial segments, for the timeline between breaks
   rows.forEach(r => {
     const user = r['Username'];
     if (!user) return;
+    // Every campaign repeats the same segment; auto-dial is kept as the highest value seen.
+    const segKey = [user, r['Ready Start Time'], r['Ready End Time'], r['Break End Time']].join('|');
+    const on = durToSec(r['Auto Call-On Duration']);
+    const off = durToSec(r['Auto Call-Off Duration']);
+    if (!segSeen.has(segKey)) {
+      segSeen.add(segKey);
+      if (!segs.has(user)) segs.set(user, new Map());
+      segs.get(user).set(segKey, { rs: r['Ready Start Time'], re: r['Ready End Time'], be: r['Break End Time'], reason: r['Break Reason'] || 'Unspecified', ready: durToSec(r['Ready Duration']), brk: durToSec(r['Break Duration']), on, off });
+    } else {
+      const g = segs.get(user).get(segKey);
+      g.on = Math.max(g.on, on);
+      g.off = Math.max(g.off, off);
+    }
     const secs = durToSec(r['Break Duration']);
     if (!secs) return;
     const key = [user, r['Ready Start Time'], r['Break End Time'], r['Break Duration']].join('|');
     if (seen.has(key)) return;
     seen.add(key);
     const reason = r['Break Reason'] || 'Unspecified';
-    if (!agents.has(user)) agents.set(user, { user, lead: leadEmailFor(r['User ID']), total: 0, reasons: {}, breaks: [] });
+    if (!agents.has(user)) agents.set(user, { user, lead: leadEmailFor(r['User ID']), type: agentTypeFor(r['User ID']), total: 0, reasons: {}, breaks: [] });
     const a = agents.get(user);
     a.total += secs;
     if (!a.reasons[reason]) a.reasons[reason] = { secs: 0, count: 0 };
@@ -116,13 +132,45 @@ function summarizeBreaks(rows) {
     totals[reason].count++;
     totals[reason].agents.add(user);
   });
-  agents.forEach(a => a.breaks.sort((x, y) => parseSheetTime(x.start) - parseSheetTime(y.start)));
+  agents.forEach(a => {
+    a.breaks.sort((x, y) => parseSheetTime(x.start) - parseSheetTime(y.start));
+    a.timeline = buildTimeline([...(segs.get(a.user) || new Map()).values()]);
+  });
   const reasons = Object.keys(totals).sort((a, b) => {
     if (a === 'Unspecified') return 1;
     if (b === 'Unspecified') return -1;
     return totals[b].secs - totals[a].secs;
   });
   return { agents: [...agents.values()].sort((a, b) => b.total - a.total), totals, reasons };
+}
+
+// Ready / break / gap events in time order. A "gap" is time that is neither ready nor on a break
+// (e.g. logged out), so a ready stretch between two breaks shows up with its auto-dial status.
+function buildTimeline(segments) {
+  segments.sort((x, y) => parseSheetTime(x.rs) - parseSheetTime(y.rs));
+  const ev = [];
+  let prevEnd = null;
+  segments.forEach(g => {
+    const rs = parseSheetTime(g.rs);
+    if (prevEnd !== null && rs - prevEnd > 5000) ev.push({ kind: 'gap', start: prevEnd, end: rs, secs: Math.round((rs - prevEnd) / 1000) });
+    if (g.ready > 0) ev.push({ kind: 'ready', startStr: g.rs, endStr: g.re, secs: g.ready, on: g.on, off: g.off });
+    if (g.brk > 0) ev.push({ kind: 'break', startStr: g.re, endStr: g.be, secs: g.brk, reason: g.reason });
+    const end = parseSheetTime(g.be);
+    prevEnd = end !== Infinity ? end : parseSheetTime(g.re);
+  });
+  return ev;
+}
+
+function autoDialStatus(on, off) {
+  const total = on + off;
+  if (!total) return '<span class="ad ad-na">No data</span>';
+  if (!off) return '<span class="ad ad-on">Auto dial ON</span>';
+  if (!on) return '<span class="ad ad-off">Auto dial OFF</span>';
+  return `<span class="ad ad-part">Partly ON · ${secToDur(on)} on / ${secToDur(off)} off</span>`;
+}
+
+function clockOnly(ms) {
+  return new Date(ms).toISOString().substr(11, 8);
 }
 
 // Makes one break data set (live sheet or an uploaded file) the one the break view shows.
@@ -229,6 +277,19 @@ function closeLeadMultis(except) {
   });
 }
 
+function setAgentType(key, value) {
+  state.agentType[key] = value;
+  if (key === 'main') applyFilters(); else renderBreakView();
+}
+
+function typeKey(type) {
+  return type || 'none';
+}
+
+function typeBadge(type) {
+  return type ? `<span class="type-badge type-${type.toLowerCase()}">${escapeHTML(type)}</span>` : '—';
+}
+
 // An agent passes when every lead is selected, or when their own lead is selected.
 function leadPasses(key, email) {
   const st = state.leads[key];
@@ -255,14 +316,16 @@ function openBreakDetail(i) {
   if (!a) return;
   const modal = document.getElementById('breakModal');
   document.getElementById('breakModalTitle').textContent = a.user;
-  document.getElementById('breakModalSub').textContent = a.lead ? `Team Lead: ${teamLeadName(a.lead)}` : 'Team Lead: —';
+  document.getElementById('breakModalSub').textContent = (a.lead ? `Team Lead: ${teamLeadName(a.lead)}` : 'Team Lead: —') + (a.type ? ` · ${a.type}` : '');
   const reasons = state.breakReasons.filter(r => a.reasons[r]);
   document.getElementById('breakModalCards').innerHTML =
     `<div class="card"><span class="card-label">TOTAL BREAK</span><span class="card-value">${secToDur(a.total)}</span><span class="card-sub">${a.breaks.length} break${a.breaks.length === 1 ? '' : 's'}</span></div>` +
     reasons.map(r => `<div class="card"><span class="card-label">${escapeHTML(r.toUpperCase())}</span><span class="card-value">${secToDur(a.reasons[r].secs)}</span><span class="card-sub">${a.reasons[r].count} time${a.reasons[r].count === 1 ? '' : 's'}</span></div>`).join('');
-  document.getElementById('breakModalBody').innerHTML = a.breaks.map((b, n) =>
-    `<tr><td>${n + 1}</td><td>${escapeHTML(b.reason)}</td><td class="dur-cell">${escapeHTML(timeOnly(b.start))}</td><td class="dur-cell">${escapeHTML(timeOnly(b.end))}</td><td class="dur-cell">${secToDur(b.secs)}</td></tr>`
-  ).join('');
+  document.getElementById('breakModalBody').innerHTML = (a.timeline || []).map((e, n) => {
+    if (e.kind === 'gap') return `<tr class="row-muted"><td>${n + 1}</td><td>Not ready · no activity</td><td class="dur-cell">${clockOnly(e.start)}</td><td class="dur-cell">${clockOnly(e.end)}</td><td class="dur-cell">${secToDur(e.secs)}</td><td>—</td></tr>`;
+    if (e.kind === 'break') return `<tr class="row-break"><td>${n + 1}</td><td>Break · ${escapeHTML(e.reason)}</td><td class="dur-cell">${escapeHTML(timeOnly(e.startStr))}</td><td class="dur-cell">${escapeHTML(timeOnly(e.endStr))}</td><td class="dur-cell">${secToDur(e.secs)}</td><td>—</td></tr>`;
+    return `<tr><td>${n + 1}</td><td>Ready</td><td class="dur-cell">${escapeHTML(timeOnly(e.startStr))}</td><td class="dur-cell">${escapeHTML(timeOnly(e.endStr))}</td><td class="dur-cell">${secToDur(e.secs)}</td><td>${autoDialStatus(e.on, e.off)}</td></tr>`;
+  }).join('');
   modal.classList.add('open');
 }
 
@@ -281,7 +344,7 @@ function openTalkDetail(i) {
   const auto = rows.reduce((n, r) => n + r.auto, 0);
   const active = rows.filter(r => r.total > 0).length;
   document.getElementById('talkModalTitle').textContent = a['User Name'] || '—';
-  document.getElementById('talkModalSub').textContent = a._tl ? `Team Lead: ${teamLeadName(a._tl)}` : 'Team Lead: —';
+  document.getElementById('talkModalSub').textContent = (a._tl ? `Team Lead: ${teamLeadName(a._tl)}` : 'Team Lead: —') + (a._type ? ` · ${a._type}` : '');
   document.getElementById('talkModalCards').innerHTML =
     `<div class="card"><span class="card-label">TOTAL TALK TIME</span><span class="card-value">${secToDur(total)}</span><span class="card-sub">across ${rows.length} campaign${rows.length === 1 ? '' : 's'}</span></div>` +
     `<div class="card"><span class="card-label">MANUAL TALK TIME</span><span class="card-value">${secToDur(manual)}</span><span class="card-sub">part of the total</span></div>` +
@@ -325,7 +388,8 @@ function renderBreakView() {
 
   const q = state.breakSearch.trim().toLowerCase();
   const agents = state.breakAgents.filter(a =>
-    (!q || a.user.toLowerCase().includes(q)) && leadPasses('break', a.lead));
+    (!q || a.user.toLowerCase().includes(q)) && leadPasses('break', a.lead) &&
+    (!state.agentType.break || typeKey(a.type) === state.agentType.break));
   state.breakFiltered = agents;
   const all = state.breakAgents.reduce((n, a) => n + a.total, 0);
 
@@ -337,11 +401,11 @@ function renderBreakView() {
     }).join('');
 
   document.getElementById('breakHead').innerHTML =
-    '<tr><th>#</th><th>Agent Name</th><th>Team Lead</th><th>Total Break Duration</th>' +
+    '<tr><th>#</th><th>Agent Name</th><th>Team Lead</th><th>Agent Type</th><th>Total Break Duration</th>' +
     state.breakReasons.map(r => `<th>${escapeHTML(r)}</th>`).join('') + '</tr>';
 
   document.getElementById('breakBody').innerHTML = agents.map((a, i) =>
-    `<tr><td>${i + 1}</td><td>${escapeHTML(a.user)}</td><td>${a.lead ? escapeHTML(teamLeadName(a.lead)) : '—'}</td><td class="dur-cell">${secToDur(a.total)} <button class="info-btn" title="View break details" onclick="openBreakDetail(${i})">i</button></td>` +
+    `<tr><td>${i + 1}</td><td>${escapeHTML(a.user)}</td><td>${a.lead ? escapeHTML(teamLeadName(a.lead)) : '—'}</td><td>${typeBadge(a.type)}</td><td class="dur-cell">${secToDur(a.total)} <button class="info-btn" title="View break details" onclick="openBreakDetail(${i})">i</button></td>` +
     state.breakReasons.map(r => {
       const x = a.reasons[r];
       return x ? `<td class="dur-cell">${secToDur(x.secs)} <span class="break-count">(${x.count}×)</span></td>` : '<td class="dur-cell break-none">—</td>';
@@ -351,10 +415,10 @@ function renderBreakView() {
 }
 
 function breakExportTable() {
-  const headers = ['#', 'Agent Name', 'Team Lead', 'Total Break Duration'];
+  const headers = ['#', 'Agent Name', 'Team Lead', 'Agent Type', 'Total Break Duration'];
   state.breakReasons.forEach(r => headers.push(`${r} Duration`, `${r} Count`));
   const rows = state.breakFiltered.map((a, i) => {
-    const row = [i + 1, a.user, a.lead ? teamLeadName(a.lead) : '', secToDur(a.total)];
+    const row = [i + 1, a.user, a.lead ? teamLeadName(a.lead) : '', a.type, secToDur(a.total)];
     state.breakReasons.forEach(r => {
       const x = a.reasons[r];
       row.push(x ? secToDur(x.secs) : '00:00:00', x ? x.count : 0);
@@ -577,7 +641,7 @@ function mergeAndRender() {
 
   state.dataSets.forEach(ds => {
     ds.rows.forEach(r => {
-      state.allRows.push({ ...r, _date: ds.isBundled ? ds.dateLabel : null, _tl: leadEmailFor(r['User ID']) });
+      state.allRows.push({ ...r, _date: ds.isBundled ? ds.dateLabel : null, _tl: leadEmailFor(r['User ID']), _type: agentTypeFor(r['User ID']) });
     });
   });
 
@@ -770,6 +834,7 @@ function applyFilters() {
       if (r._date && !state.selectedDates.has(r._date)) return false;
     }
     if (!leadPasses('main', r._tl)) return false;
+    if (state.agentType.main && typeKey(r._type) !== state.agentType.main) return false;
     if (search && !(r['User Name'] || '').toLowerCase().includes(search)) return false;
     return true;
   });
@@ -850,6 +915,7 @@ function renderTable() {
       <td><div class="campaign-stack">${(r._campaigns && r._campaigns.length ? r._campaigns : [r['Campaign Name'] || '—']).map(c => `<span class="campaign-badge">${escapeHTML(c)}</span>`).join('')}</div></td>
       <td>${r['User Name'] || '—'}</td>
       <td>${r._tl ? teamLeadName(r._tl) : '—'}</td>
+      <td>${typeBadge(r._type)}</td>
       <td class="dur-cell">${r['Total Staffed Duration'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Auto Call-On Duration'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Auto Call-Off Duration'] || '00:00:00'}</td>
@@ -999,7 +1065,7 @@ function exportCSV() {
   if (state.filteredRows.length === 0) { showToast('No data to export'); return; }
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
-  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Break Duration'];
+  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Agent Type', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Break Duration'];
   if (showDates) headers.push('Date');
   const csvRows = [headers.join(',')];
 
@@ -1009,6 +1075,7 @@ function exportCSV() {
       `"${(r._campaigns || [r['Campaign Name'] || '']).join(', ')}"`,
       `"${r['User Name'] || ''}"`,
       `"${r._tl ? teamLeadName(r._tl) : ''}"`,
+      r._type,
       r['Total Staffed Duration'] || '00:00:00',
       r['Auto Call-On Duration'] || '00:00:00',
       r['Auto Call-Off Duration'] || '00:00:00',
@@ -1029,7 +1096,7 @@ function exportExcel() {
   if (state.filteredRows.length === 0) { showToast('No data to export'); return; }
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
-  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Break Duration'];
+  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Agent Type', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Break Duration'];
   if (showDates) headers.push('Date');
 
   let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
@@ -1043,6 +1110,7 @@ function exportExcel() {
     html += `<td>${(r._campaigns || [r['Campaign Name'] || '']).map(escapeHTML).join('<br style="mso-data-placement:same-cell;">')}</td>`;
     html += `<td>${r['User Name'] || ''}</td>`;
     html += `<td>${r._tl ? teamLeadName(r._tl) : ''}</td>`;
+    html += `<td>${r._type}</td>`;
     html += `<td>${r['Total Staffed Duration'] || '00:00:00'}</td>`;
     html += `<td>${r['Auto Call-On Duration'] || '00:00:00'}</td>`;
     html += `<td>${r['Auto Call-Off Duration'] || '00:00:00'}</td>`;

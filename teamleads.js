@@ -382,3 +382,50 @@ function teamLeadName(email) {
   return local.split(/[._]+/).filter(Boolean)
     .map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') || email;
 }
+
+/* Agent (user ID) -> Direct / DDA. Agents not listed here have no type (shown as "—"). */
+const AGENT_TYPE_RAW = `
+akhilesh.singh@ambak.com	Direct
+aman.kumar1@ambak.com	Direct
+avinash.singh2@ambak.com	Direct
+deva.1@ambak.com	Direct
+gaurav.sain@ambak.com	Direct
+hariom.mishra@ambak.com	Direct
+chirag.1@ambak.com	Direct
+jatin.kumar@ambak.com	Direct
+jitender.1@ambak.com	Direct
+kamlesh.yadav1@ambak.com	Direct
+kuldeep.1@ambak.com	Direct
+lokesh.yadav@ambak.com	Direct
+manish.kumar1@ambak.com	Direct
+mukesh.yadav@ambak.com	Direct
+rashid.ali@ambak.com	Direct
+ravindra.sah@ambak.com	Direct
+rishabh.gangwar@ambak.com	Direct
+shivam.sharma@ambak.com	Direct
+sughar.rajpoot1@ambak.com	Direct
+lucky.1@ambak.com	Direct
+ashish.sharma3@ambak.com	Direct
+shalu.kumari@ambak.com	Direct
+ankush.mittal@ambak.com	Direct
+abhishek.kumar1@ambak.com	Direct
+dil.khush@ambak.com	Direct
+megha.kumari@ambak.com	Direct
+rohit.chandel@ambak.com	Direct
+komal.garg@ambak.com	DDA
+ravi.chaudhary@ambak.com	DDA
+ritika.kumari@ambak.com	DDA
+shivam.yadav1@ambak.com	DDA
+sonu.dayma@ambak.com	DDA
+sunil.rajput@ambak.com	DDA
+`;
+
+const AGENT_TYPE_BY_USER = {};
+AGENT_TYPE_RAW.trim().split(/\r?\n/).forEach(line => {
+  const [user, type] = line.trim().split(/\s+/);
+  if (user && type) AGENT_TYPE_BY_USER[user.toLowerCase()] = type;
+});
+
+function agentTypeFor(userId) {
+  return AGENT_TYPE_BY_USER[(userId || '').trim().toLowerCase()] || '';
+}
