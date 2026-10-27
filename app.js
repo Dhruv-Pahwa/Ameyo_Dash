@@ -32,7 +32,7 @@ const state = {
   breakFiltered: [],
   agentType: { main: '', break: '' }, // '' = all, otherwise 'Direct' | 'DDA' | 'none' (not in the list)
   leads: { main: { all: [], selected: new Set() }, break: { all: [], selected: new Set() } },
-  view: 'live' // 'live' (Google Sheet) | 'upload' | 'break'
+  view: 'live' // 'live' (Google Sheet: productivity + breaks) | 'upload'
 };
 
 // ---- Init ----
@@ -91,86 +91,105 @@ async function loadBreakSheet() {
 }
 
 // One row per agent with total break time and time/count per break reason.
-// The export repeats each break once per campaign, so identical breaks are counted once.
+// The export has one row per auto-call on/off interval, repeated once per campaign, so rows are
+// folded into ready segments (same ready start/end) and each break is counted once.
 function summarizeBreaks(rows) {
-  const seen = new Set();
-  const agents = new Map();
-  const totals = {};
-  const segSeen = new Set();
-  const segs = new Map(); // user -> ready / auto-dial segments, for the timeline between breaks
+  const users = new Map();
   rows.forEach(r => {
     const user = r['Username'];
     if (!user) return;
-    // Every campaign repeats the same segment; auto-dial is kept as the highest value seen.
-    const segKey = [user, r['Ready Start Time'], r['Ready End Time'], r['Break End Time']].join('|');
-    const on = durToSec(r['Auto Call-On Duration']);
-    const off = durToSec(r['Auto Call-Off Duration']);
-    if (!segSeen.has(segKey)) {
-      segSeen.add(segKey);
-      if (!segs.has(user)) segs.set(user, new Map());
-      segs.get(user).set(segKey, { rs: r['Ready Start Time'], re: r['Ready End Time'], be: r['Break End Time'], reason: r['Break Reason'] || 'Unspecified', ready: durToSec(r['Ready Duration']), brk: durToSec(r['Break Duration']), on, off });
-    } else {
-      const g = segs.get(user).get(segKey);
-      g.on = Math.max(g.on, on);
-      g.off = Math.max(g.off, off);
+    if (!users.has(user)) users.set(user, { userId: r['User ID'], segs: new Map(), autos: new Map() });
+    const u = users.get(user);
+    const segKey = r['Ready Start Time'] + '|' + r['Ready End Time'];
+    if (!u.segs.has(segKey)) u.segs.set(segKey, { rs: r['Ready Start Time'], re: r['Ready End Time'], be: '', reason: 'Unspecified', ready: durToSec(r['Ready Duration']), brk: 0 });
+    const g = u.segs.get(segKey);
+    const brk = durToSec(r['Break Duration']);
+    // The same break can differ by a second between campaigns: keep the longest.
+    if (r['Break End Time'] && brk > g.brk) {
+      g.be = r['Break End Time'];
+      g.brk = brk;
+      g.reason = r['Break Reason'] || 'Unspecified';
     }
-    const secs = durToSec(r['Break Duration']);
-    if (!secs) return;
-    const key = [user, r['Ready Start Time'], r['Break End Time'], r['Break Duration']].join('|');
-    if (seen.has(key)) return;
-    seen.add(key);
-    const reason = r['Break Reason'] || 'Unspecified';
-    if (!agents.has(user)) agents.set(user, { user, lead: leadEmailFor(r['User ID']), type: agentTypeFor(r['User ID']), total: 0, reasons: {}, breaks: [] });
-    const a = agents.get(user);
-    a.total += secs;
-    if (!a.reasons[reason]) a.reasons[reason] = { secs: 0, count: 0 };
-    a.reasons[reason].secs += secs;
-    a.reasons[reason].count++;
-    a.breaks.push({ reason, start: r['Ready End Time'], end: r['Break End Time'], secs });
-    if (!totals[reason]) totals[reason] = { secs: 0, count: 0, agents: new Set() };
-    totals[reason].secs += secs;
-    totals[reason].count++;
-    totals[reason].agents.add(user);
+    const onStart = parseSheetTime(r['Auto Call-On Start Time']);
+    if (onStart === Infinity) return;
+    const onEnd = parseSheetTime(r['Auto Call-On End Time']);
+    let offEnd = parseSheetTime(r['Auto Call-Off End Time']);
+    if (offEnd === Infinity) offEnd = onEnd + durToSec(r['Auto Call-Off Duration']) * 1000;
+    u.autos.set([onStart, onEnd, offEnd].join('|'), { onStart, onEnd, offEnd });
   });
-  agents.forEach(a => {
+
+  const agents = [];
+  const totals = {};
+  users.forEach((u, user) => {
+    const segments = [...u.segs.values()];
+    const autos = [...u.autos.values()];
+    // Auto call-on/off time counts only while the agent was ready: the intervals are clipped to the
+    // ready segment (an auto-off interval keeps running through the break that follows).
+    const overlap = (a1, a2, b1, b2) => Math.max(0, Math.min(a2, b2) - Math.max(a1, b1)) / 1000;
+    segments.forEach(g => {
+      const rs = parseSheetTime(g.rs);
+      const re = parseSheetTime(g.re);
+      g.on = 0;
+      g.off = 0;
+      if (rs === Infinity || re === Infinity) return;
+      autos.forEach(a => {
+        g.on += overlap(a.onStart, a.onEnd, rs, re);
+        g.off += overlap(a.onEnd, a.offEnd, rs, re);
+      });
+      g.on = Math.round(g.on);
+      g.off = Math.round(g.off);
+    });
+    const a = { user, userId: (u.userId || '').trim().toLowerCase(), lead: leadEmailFor(u.userId), type: agentTypeFor(u.userId), total: 0, reasons: {}, breaks: [] };
+    segments.filter(g => g.brk > 0).forEach(g => {
+      a.total += g.brk;
+      if (!a.reasons[g.reason]) a.reasons[g.reason] = { secs: 0, count: 0 };
+      a.reasons[g.reason].secs += g.brk;
+      a.reasons[g.reason].count++;
+      a.breaks.push({ reason: g.reason, start: g.re, end: g.be, secs: g.brk });
+      if (!totals[g.reason]) totals[g.reason] = { secs: 0, count: 0, agents: new Set() };
+      totals[g.reason].secs += g.brk;
+      totals[g.reason].count++;
+      totals[g.reason].agents.add(user);
+    });
+    if (!a.total) return;
     a.breaks.sort((x, y) => parseSheetTime(x.start) - parseSheetTime(y.start));
-    a.timeline = buildTimeline([...(segs.get(a.user) || new Map()).values()]);
+    a.timeline = buildTimeline(segments);
+    agents.push(a);
   });
   const reasons = Object.keys(totals).sort((a, b) => {
     if (a === 'Unspecified') return 1;
     if (b === 'Unspecified') return -1;
     return totals[b].secs - totals[a].secs;
   });
-  return { agents: [...agents.values()].sort((a, b) => b.total - a.total), totals, reasons };
+  return { agents: agents.sort((a, b) => b.total - a.total), totals, reasons };
 }
 
 // Ready / break / gap events in time order. A "gap" is time that is neither ready nor on a break
-// (e.g. logged out), so a ready stretch between two breaks shows up with its auto-dial status.
+// (e.g. logged out), so a ready stretch between two breaks shows up with its auto-dial time.
 function buildTimeline(segments) {
-  segments.sort((x, y) => parseSheetTime(x.rs) - parseSheetTime(y.rs));
+  const segs = segments.filter(g => parseSheetTime(g.rs) !== Infinity);
+  segs.sort((x, y) => parseSheetTime(x.rs) - parseSheetTime(y.rs));
   const ev = [];
   let prevEnd = null;
-  segments.forEach(g => {
+  segs.forEach(g => {
     const rs = parseSheetTime(g.rs);
+    const re = parseSheetTime(g.re);
     if (prevEnd !== null && rs - prevEnd > 5000) ev.push({ kind: 'gap', start: prevEnd, end: rs, secs: Math.round((rs - prevEnd) / 1000) });
-    if (g.ready > 0) ev.push({ kind: 'ready', startStr: g.rs, endStr: g.re, secs: g.ready, on: g.on, off: g.off });
-    if (g.brk > 0) ev.push({ kind: 'break', startStr: g.re, endStr: g.be, secs: g.brk, reason: g.reason });
-    const end = parseSheetTime(g.be);
-    prevEnd = end !== Infinity ? end : parseSheetTime(g.re);
+    if (g.ready > 0) ev.push({ kind: 'ready', start: rs, end: re, secs: g.ready, on: g.on, off: g.off });
+    const be = parseSheetTime(g.be);
+    if (g.brk > 0) ev.push({ kind: 'break', start: re, end: be !== Infinity ? be : re + g.brk * 1000, secs: g.brk, reason: g.reason });
+    prevEnd = Math.max(re, be !== Infinity ? be : re);
   });
   return ev;
 }
 
-function autoDialStatus(on, off) {
-  const total = on + off;
-  if (!total) return '<span class="ad ad-na">No data</span>';
-  if (!off) return '<span class="ad ad-on">Auto dial ON</span>';
-  if (!on) return '<span class="ad ad-off">Auto dial OFF</span>';
-  return `<span class="ad ad-part">Partly ON · ${secToDur(on)} on / ${secToDur(off)} off</span>`;
-}
-
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function clockOnly(ms) {
   return new Date(ms).toISOString().substr(11, 8);
+}
+function dayOnly(ms) {
+  const d = new Date(ms);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
 // Makes one break data set (live sheet or an uploaded file) the one the break view shows.
@@ -282,6 +301,17 @@ function setAgentType(key, value) {
   if (key === 'main') applyFilters(); else renderBreakView();
 }
 
+// Break data that goes with the productivity table being shown (live sheet or uploaded break file).
+function breakData() {
+  return state.view === 'live' ? state.liveBreak : state.uploadBreak;
+}
+
+function breakAgentFor(userId) {
+  const d = breakData();
+  const id = (userId || '').trim().toLowerCase();
+  return d && id ? d.agents.find(x => x.userId === id) : null;
+}
+
 function typeKey(type) {
   return type || 'none';
 }
@@ -312,19 +342,46 @@ function timeOnly(str) {
 }
 
 function openBreakDetail(i) {
-  const a = state.breakFiltered[i];
+  openBreakAgent(state.breakFiltered[i]);
+}
+
+// Break details of one agent, found by login id (used from the productivity table).
+function openBreakDetailFor(userId) {
+  const d = breakData();
+  openBreakAgent(d && d.agents.find(x => x.userId === userId));
+}
+
+function openBreakAgent(a) {
   if (!a) return;
   const modal = document.getElementById('breakModal');
   document.getElementById('breakModalTitle').textContent = a.user;
   document.getElementById('breakModalSub').textContent = (a.lead ? `Team Lead: ${teamLeadName(a.lead)}` : 'Team Lead: —') + (a.type ? ` · ${a.type}` : '');
   const reasons = state.breakReasons.filter(r => a.reasons[r]);
+  const ready = (a.timeline || []).filter(e => e.kind === 'ready');
+  const readySecs = ready.reduce((n, e) => n + e.secs, 0);
+  const onSecs = ready.reduce((n, e) => n + e.on, 0);
+  const offSecs = ready.reduce((n, e) => n + e.off, 0);
   document.getElementById('breakModalCards').innerHTML =
     `<div class="card"><span class="card-label">TOTAL BREAK</span><span class="card-value">${secToDur(a.total)}</span><span class="card-sub">${a.breaks.length} break${a.breaks.length === 1 ? '' : 's'}</span></div>` +
+    `<div class="card"><span class="card-label">READY TIME</span><span class="card-value">${secToDur(readySecs)}</span><span class="card-sub">${ready.length} stretch${ready.length === 1 ? '' : 'es'} between breaks</span></div>` +
+    `<div class="card"><span class="card-label">AUTO CALL-ON</span><span class="card-value">${secToDur(onSecs)}</span><span class="card-sub">total while ready</span></div>` +
+    `<div class="card"><span class="card-label">AUTO CALL-OFF</span><span class="card-value">${secToDur(offSecs)}</span><span class="card-sub">total while ready</span></div>` +
     reasons.map(r => `<div class="card"><span class="card-label">${escapeHTML(r.toUpperCase())}</span><span class="card-value">${secToDur(a.reasons[r].secs)}</span><span class="card-sub">${a.reasons[r].count} time${a.reasons[r].count === 1 ? '' : 's'}</span></div>`).join('');
+  let day = '';
   document.getElementById('breakModalBody').innerHTML = (a.timeline || []).map((e, n) => {
-    if (e.kind === 'gap') return `<tr class="row-muted"><td>${n + 1}</td><td>Not ready · no activity</td><td class="dur-cell">${clockOnly(e.start)}</td><td class="dur-cell">${clockOnly(e.end)}</td><td class="dur-cell">${secToDur(e.secs)}</td><td>—</td></tr>`;
-    if (e.kind === 'break') return `<tr class="row-break"><td>${n + 1}</td><td>Break · ${escapeHTML(e.reason)}</td><td class="dur-cell">${escapeHTML(timeOnly(e.startStr))}</td><td class="dur-cell">${escapeHTML(timeOnly(e.endStr))}</td><td class="dur-cell">${secToDur(e.secs)}</td><td>—</td></tr>`;
-    return `<tr><td>${n + 1}</td><td>Ready</td><td class="dur-cell">${escapeHTML(timeOnly(e.startStr))}</td><td class="dur-cell">${escapeHTML(timeOnly(e.endStr))}</td><td class="dur-cell">${secToDur(e.secs)}</td><td>${autoDialStatus(e.on, e.off)}</td></tr>`;
+    // A date row whenever the day changes, so sessions on different days are not mixed up.
+    let dateRow = '';
+    if (dayOnly(e.start) !== day) {
+      day = dayOnly(e.start);
+      dateRow = `<tr class="row-date"><td colspan="6">${day}</td></tr>`;
+    }
+    const time = e.kind === 'gap' && dayOnly(e.end) !== day
+      ? `${clockOnly(e.start)} – ${dayOnly(e.end)} ${clockOnly(e.end)}`
+      : `${clockOnly(e.start)} – ${clockOnly(e.end)}`;
+    const head = `<td>${n + 1}</td><td class="dur-cell">${time}</td>`;
+    if (e.kind === 'gap') return dateRow + `<tr class="row-muted">${head}<td><span class="act act-gap">Not ready</span></td><td class="dur-cell">${secToDur(e.secs)}</td><td colspan="2" class="ad-note">No ready or break activity recorded</td></tr>`;
+    if (e.kind === 'break') return dateRow + `<tr class="row-break">${head}<td><span class="act act-break">Break</span> ${escapeHTML(e.reason)}</td><td class="dur-cell">${secToDur(e.secs)}</td><td colspan="2" class="ad-note">On break</td></tr>`;
+    return dateRow + `<tr>${head}<td><span class="act act-ready">Ready</span></td><td class="dur-cell">${secToDur(e.secs)}</td><td class="dur-cell ad-on-t">${secToDur(e.on)}</td><td class="dur-cell ad-off-t">${secToDur(e.off)}</td></tr>`;
   }).join('');
   modal.classList.add('open');
 }
@@ -370,12 +427,15 @@ function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Live view: shown below the productivity table. Uploaded break file: shown on its own.
 function renderBreakView() {
-  ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper'].forEach(id => {
-    document.getElementById(id).style.display = 'none';
-  });
-  document.getElementById('emptyState').classList.add('hidden');
-  document.getElementById('dropZone').classList.add('hidden');
+  if (state.view !== 'live') {
+    ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('dropZone').classList.add('hidden');
+  }
   document.getElementById('breakSection').style.display = '';
   if (!state.breakAgents.length) {
     document.getElementById('breakCards').innerHTML = '';
@@ -457,7 +517,7 @@ function filterBreaks(value) {
 
 async function refreshSheet(manual) {
   const [changed, breakChanged] = await Promise.all([loadSheet(), loadBreakSheet()]);
-  if ((state.view === 'live' && changed) || (state.view === 'break' && breakChanged)) applyView();
+  if (state.view === 'live' && (changed || breakChanged)) applyView();
   updateSourceBar();
   if (manual === true) showToast(changed || breakChanged ? 'Data updated' : 'Data is up to date');
 }
@@ -474,11 +534,8 @@ function showEmpty(message, showDrop) {
 
 function applyView() {
   const uploadedBreak = state.view === 'upload' && state.uploadKind === 'break' && state.uploadBreak;
-  if (state.view !== 'break' && !uploadedBreak) document.getElementById('breakSection').style.display = 'none';
-  if (state.view === 'break') {
-    activateBreak(state.liveBreak);
-    renderBreakView();
-  } else if (uploadedBreak) {
+  if (state.view !== 'live' && !uploadedBreak) document.getElementById('breakSection').style.display = 'none';
+  if (uploadedBreak) {
     activateBreak(state.uploadBreak);
     renderBreakView();
   } else if (state.view === 'live') {
@@ -516,12 +573,9 @@ function updateSourceBar() {
   const v = state.view;
   document.getElementById('sourceText').textContent = v === 'live'
     ? 'Showing live data from Google Sheet'
-    : v === 'break'
-      ? 'Showing break breakdown from Google Sheet'
-      : (!state.uploadSets.length && !state.uploadBreak ? 'Showing uploaded data · nothing uploaded yet'
+    : (!state.uploadSets.length && !state.uploadBreak ? 'Showing uploaded data · nothing uploaded yet'
         : state.uploadKind === 'break' && state.uploadBreak ? 'Showing uploaded break data' : 'Showing uploaded data');
   document.getElementById('viewLiveBtn').classList.toggle('active', v === 'live');
-  document.getElementById('viewBreakBtn').classList.toggle('active', v === 'break');
   document.getElementById('viewUploadBtn').classList.toggle('active', v === 'upload');
   // Both kinds uploaded: let the user pick which one to look at.
   const both = v === 'upload' && state.uploadSets.length > 0 && !!state.uploadBreak;
@@ -905,6 +959,10 @@ function renderTable() {
   tbody.innerHTML = '';
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
+  const bd = breakData();
+  const reasons = bd ? bd.reasons : [];
+  syncBreakHeaders(reasons);
+
   const rows = state.filteredRows;
   document.getElementById('tableCount').textContent = `${rows.length} record${rows.length !== 1 ? 's' : ''}`;
 
@@ -922,11 +980,33 @@ function renderTable() {
       <td class="dur-cell">${r['Total Talk Time in Interval'] || '00:00:00'} <button class="info-btn" title="Talk time by campaign" onclick="openTalkDetail(${i})">i</button></td>
       <td class="dur-cell">${r['Manual Calls Talk Time'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Talk Time in Auto Dial'] || '00:00:00'}</td>
-      <td class="dur-cell">${r['Total Break Duration'] || '00:00:00'}</td>
+      <td class="dur-cell">${r['Total Break Duration'] || '00:00:00'}${breakAgentFor(r['User ID']) ? ` <button class="info-btn" title="Break timeline" onclick="openBreakDetailFor('${escapeHTML((r['User ID'] || '').trim().toLowerCase())}')">i</button>` : ''}</td>
+      ${breakReasonCells(r, reasons)}
       ${showDates ? `<td><span class="date-badge">${r._date || '—'}</span></td>` : ''}
     `;
     tbody.appendChild(tr);
   });
+}
+
+// One column per break reason, right after Total Break Duration.
+function syncBreakHeaders(reasons) {
+  const row = document.querySelector('#dataTable thead tr');
+  row.querySelectorAll('th.break-extra').forEach(th => th.remove());
+  const before = document.getElementById('dateColumnHeader');
+  reasons.forEach(reason => {
+    const th = document.createElement('th');
+    th.className = 'break-extra';
+    th.innerHTML = `<span>${escapeHTML(reason)}</span>`;
+    row.insertBefore(th, before);
+  });
+}
+
+function breakReasonCells(r, reasons) {
+  const a = breakAgentFor(r['User ID']);
+  return reasons.map(reason => {
+    const x = a && a.reasons[reason];
+    return x ? `<td class="dur-cell">${secToDur(x.secs)} <span class="break-count">(${x.count}×)</span></td>` : '<td class="dur-cell break-none">—</td>';
+  }).join('');
 }
 
 // ---- Sorting ----
@@ -1066,6 +1146,8 @@ function exportCSV() {
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
   const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Agent Type', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Break Duration'];
+  const exReasons = (breakData() || { reasons: [] }).reasons;
+  exReasons.forEach(x => headers.push(`${x} Duration`, `${x} Count`));
   if (showDates) headers.push('Date');
   const csvRows = [headers.join(',')];
 
@@ -1084,6 +1166,8 @@ function exportCSV() {
       r['Talk Time in Auto Dial'] || '00:00:00',
       r['Total Break Duration'] || '00:00:00'
     ];
+    const ba = breakAgentFor(r['User ID']);
+    exReasons.forEach(x => row.push(ba && ba.reasons[x] ? secToDur(ba.reasons[x].secs) : '00:00:00', ba && ba.reasons[x] ? ba.reasons[x].count : 0));
     if (showDates) row.push(r._date || '');
     csvRows.push(row.join(','));
   });
@@ -1097,6 +1181,8 @@ function exportExcel() {
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
   const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Agent Type', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Break Duration'];
+  const exReasons = (breakData() || { reasons: [] }).reasons;
+  exReasons.forEach(x => headers.push(`${x} Duration`, `${x} Count`));
   if (showDates) headers.push('Date');
 
   let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
@@ -1118,6 +1204,8 @@ function exportExcel() {
     html += `<td>${r['Manual Calls Talk Time'] || '00:00:00'}</td>`;
     html += `<td>${r['Talk Time in Auto Dial'] || '00:00:00'}</td>`;
     html += `<td>${r['Total Break Duration'] || '00:00:00'}</td>`;
+    const ba = breakAgentFor(r['User ID']);
+    exReasons.forEach(x => { html += `<td>${ba && ba.reasons[x] ? secToDur(ba.reasons[x].secs) : '00:00:00'}</td><td>${ba && ba.reasons[x] ? ba.reasons[x].count : 0}</td>`; });
     if (showDates) html += `<td>${r._date || ''}</td>`;
     html += '</tr>';
   });
