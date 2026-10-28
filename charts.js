@@ -163,38 +163,6 @@ function renderCharts() {
     });
   }
 
-  // Line: break minutes started in each hour of the latest day (the sheet can also hold the previous evening).
-  const perHour = new Array(24).fill(0);
-  const dayMs = ms => Math.floor(ms / 86400000);
-  let latestDay = -Infinity;
-  breakAgents.forEach(a => a.breaks.forEach(b => {
-    const ms = parseSheetTime(b.start);
-    if (ms !== Infinity) latestDay = Math.max(latestDay, dayMs(ms));
-  }));
-  breakAgents.forEach(a => a.breaks.forEach(b => {
-    const ms = parseSheetTime(b.start);
-    if (ms !== Infinity && dayMs(ms) === latestDay) perHour[new Date(ms).getUTCHours()] += b.secs / 60;
-  }));
-  document.getElementById('chHourlySub').textContent = latestDay === -Infinity
-    ? 'Line: break minutes started per hour'
-    : `Line: break minutes started per hour on ${new Date(latestDay * 86400000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
-  const first = perHour.findIndex(v => v > 0);
-  const last = perHour.length - 1 - [...perHour].reverse().findIndex(v => v > 0);
-  setChartEmpty('chHourly', first === -1);
-  if (first !== -1) {
-    const labels = [], data = [];
-    for (let h = first; h <= last; h++) { labels.push(`${String(h).padStart(2, '0')}:00`); data.push(Math.round(perHour[h])); }
-    drawChart('chHourly', {
-      type: 'line',
-      data: { labels, datasets: [{ data, borderColor: CHART_COLORS.brk, backgroundColor: 'rgba(245,158,11,0.15)', fill: true, tension: 0.3, pointRadius: 3 }] },
-      options: {
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.parsed.y} min on break` } } },
-        scales: { x: { ticks: { color: t.text }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: t.text }, grid: { color: t.grid }, title: { display: true, text: 'Break minutes', color: t.text } } }
-      }
-    });
-  }
-
   // Average ready / break / talk per team lead.
   const byLead = new Map();
   rows.forEach(r => {
