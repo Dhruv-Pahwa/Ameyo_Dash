@@ -18,6 +18,8 @@ const state = {
   sortDir: 'asc',
   hasUserUploads: false,
   uploadSets: [],
+  uploadDays: [],       // one entry per uploaded day: { label, set, breakData }
+  uploadDayIndex: 0,    // which uploaded day tab is active
   sheetSet: null,
   sheetText: '',
   sheetUpdated: null,
@@ -51,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadBundledFiles() {
   await Promise.all([loadSheet(), loadBreakSheet()]);
   // The sheet can finish loading after the user has already uploaded files: keep showing those.
-  if (state.view === 'live' || !(state.uploadSets.length || state.uploadBreak)) state.view = 'live';
+  if (state.view === 'live' || !state.uploadDays.length) state.view = 'live';
   applyView();
   setInterval(refreshSheet, SHEET_REFRESH_MS);
 }
@@ -568,8 +570,12 @@ function applyView() {
 }
 
 function setView(view) {
-  // The Uploaded data tab asks for files when nothing is uploaded yet, or when it is clicked again to replace them.
-  if (view === 'upload' && (state.view === 'upload' || (!state.uploadSets.length && !state.uploadBreak))) { openUploadModal(); return; }
+  if (view === 'upload') {
+    // No uploaded days yet: ask for files. Otherwise show the day that was last active.
+    if (!state.uploadDays.length) { openUploadModal(); return; }
+    setUploadDay(state.uploadDayIndex < state.uploadDays.length ? state.uploadDayIndex : 0);
+    return;
+  }
   if (state.view === view) return;
   state.view = view;
   applyView();
@@ -579,12 +585,19 @@ function updateSourceBar() {
   const bar = document.getElementById('sourceBar');
   if (!bar) return;
   const v = state.view;
+  const day = state.uploadDays[state.uploadDayIndex];
   document.getElementById('sourceText').textContent = v === 'live'
     ? 'Showing live data from Google Sheet'
-    : (!state.uploadSets.length && !state.uploadBreak ? 'Showing uploaded data · nothing uploaded yet'
-        : !state.uploadSets.length ? 'Showing uploaded break data' : 'Showing uploaded data');
+    : (day ? `Showing uploaded data · ${day.label}` : 'Showing uploaded data');
   document.getElementById('viewLiveBtn').classList.toggle('active', v === 'live');
-  document.getElementById('viewUploadBtn').classList.toggle('active', v === 'upload');
+
+  // One tab per uploaded day, between the Live tab and the Upload button.
+  const tabs = document.getElementById('uploadTabs');
+  if (tabs) {
+    tabs.innerHTML = state.uploadDays.map((d, i) =>
+      `<button class="btn-source${v === 'upload' && i === state.uploadDayIndex ? ' active' : ''}" onclick="setUploadDay(${i})">${escapeHTML(d.label)}</button>`
+    ).join('');
+  }
   bar.style.display = '';
 }
 
@@ -613,6 +626,18 @@ function extractDateLabel(fileName) {
     return `${day}${getOrdinal(parseInt(day))} ${fullMonth[month] || month}`;
   }
   return fileName.replace('.csv', '');
+}
+
+// A day label used to group uploaded files. Handles the Ameyo "2026-10-28" filename style
+// (so a day's productivity file and break file land in the same tab) and falls back to the
+// "28th Oct" style, then to the file name.
+function fileDateLabel(fileName) {
+  const iso = fileName.match(/(\d{4})[-_.](\d{1,2})[-_.](\d{1,2})/);
+  if (iso) {
+    const y = iso[1], mo = +iso[2], d = +iso[3];
+    if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return `${d} ${MONTHS[mo - 1]} ${y}`;
+  }
+  return extractDateLabel(fileName);
 }
 
 function getOrdinal(n) {
@@ -1109,8 +1134,12 @@ function isBreakFile(text) {
 }
 
 async function processUploadedFiles(files) {
-  state.dataSets = [];
-  pendingBreakRows = [];
+  // Group the uploaded files by day (date in the file name). Each day becomes its own tab.
+  const days = new Map(); // label -> { label, prodRows: [], breakRows: [] }
+  const dayFor = label => {
+    if (!days.has(label)) days.set(label, { label, prodRows: [], breakRows: [] });
+    return days.get(label);
+  };
 
   for (const file of Array.from(files)) {
     if (!file.name.toLowerCase().endsWith('.csv')) {
@@ -1119,30 +1148,46 @@ async function processUploadedFiles(files) {
     }
     try {
       const text = await readFileAsText(file);
+      const day = dayFor(fileDateLabel(file.name));
       if (isBreakFile(text)) {
-        pendingBreakRows = pendingBreakRows.concat(parseCSV(text).rows);
+        day.breakRows.push(...parseCSV(text).rows);
       } else {
-        processCSV(text, file.name, extractDateLabel(file.name), false);
+        day.prodRows.push(...extractAgentRows(text));
       }
     } catch (err) {
       showToast(`Could not read "${file.name}"`);
     }
   }
 
-  // All files read \u2014 build the uploaded-data state and show it.
-  state.uploadSets = [...state.dataSets];
-  try {
-    state.uploadBreak = pendingBreakRows.length ? summarizeBreaks(pendingBreakRows) : null;
-  } catch (err) {
-    console.error(err);
-    state.uploadBreak = null;
-  }
+  // Turn each day into a dataset + break summary.
+  state.uploadDays = [...days.values()].map(d => ({
+    label: d.label,
+    set: d.prodRows.length ? { fileName: d.label, dateLabel: d.label, rows: d.prodRows, isBundled: false } : null,
+    breakData: d.breakRows.length ? safeSummarizeBreaks(d.breakRows) : null
+  })).filter(d => d.set || d.breakData);
 
-  if (!state.uploadSets.length && !state.uploadBreak) {
+  if (!state.uploadDays.length) {
     showToast('No usable data found in the uploaded files');
     return;
   }
 
+  setUploadDay(0);
+  showToast(`Loaded ${state.uploadDays.length} day${state.uploadDays.length === 1 ? '' : 's'} of uploaded data`);
+}
+
+function safeSummarizeBreaks(rows) {
+  try { return summarizeBreaks(rows); }
+  catch (err) { console.error(err); return null; }
+}
+
+// Show one uploaded day's dashboard. uploadSets/uploadBreak point at the active day,
+// so the existing applyView / breakData logic works unchanged.
+function setUploadDay(i) {
+  if (i < 0 || i >= state.uploadDays.length) return;
+  state.uploadDayIndex = i;
+  const day = state.uploadDays[i];
+  state.uploadSets = day.set ? [day.set] : [];
+  state.uploadBreak = day.breakData;
   state.view = 'upload';
   applyView();
 }
