@@ -961,7 +961,8 @@ function renderSummary() {
   const n = rows.length;
 
   if (n === 0) {
-    ['cardStaffed', 'cardAutoOn', 'cardAutoOff', 'cardTalk', 'cardManual', 'cardBreak'].forEach(id => {
+    ['cardStaffed', 'cardAutoOn', 'cardAutoOff', 'cardTalk', 'cardManual', 'cardBreak',
+      'cardSumStaffed', 'cardSumAutoOn', 'cardSumAutoOff', 'cardSumTalk', 'cardSumManual', 'cardSumBreak'].forEach(id => {
       document.getElementById(id).textContent = '0:00:00';
     });
     return;
@@ -973,6 +974,18 @@ function renderSummary() {
     return secondsToTime(Math.round(totalSec / n));
   };
 
+  const sumTime = (field) => {
+    let totalSec = 0;
+    rows.forEach(r => { totalSec += timeToSeconds(r[field]); });
+    return secondsToTime(totalSec);
+  };
+
+  document.getElementById('cardSumStaffed').textContent = sumTime('Total Staffed Duration');
+  document.getElementById('cardSumAutoOn').textContent = sumTime('Auto Call-On Duration');
+  document.getElementById('cardSumAutoOff').textContent = sumTime('Auto Call-Off Duration');
+  document.getElementById('cardSumTalk').textContent = sumTime('Total Talk Time in Interval');
+  document.getElementById('cardSumManual').textContent = sumTime('Manual Calls Talk Time');
+  document.getElementById('cardSumBreak').textContent = sumTime('Total Break Duration');
   document.getElementById('cardStaffed').textContent = avgTime('Total Staffed Duration');
   document.getElementById('cardAutoOn').textContent = avgTime('Auto Call-On Duration');
   document.getElementById('cardAutoOff').textContent = avgTime('Auto Call-Off Duration');
