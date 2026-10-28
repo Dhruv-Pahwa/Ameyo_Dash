@@ -163,12 +163,21 @@ function renderCharts() {
     });
   }
 
-  // Line: break minutes started in each hour of the day.
+  // Line: break minutes started in each hour of the latest day (the sheet can also hold the previous evening).
   const perHour = new Array(24).fill(0);
+  const dayMs = ms => Math.floor(ms / 86400000);
+  let latestDay = -Infinity;
   breakAgents.forEach(a => a.breaks.forEach(b => {
     const ms = parseSheetTime(b.start);
-    if (ms !== Infinity) perHour[new Date(ms).getUTCHours()] += b.secs / 60;
+    if (ms !== Infinity) latestDay = Math.max(latestDay, dayMs(ms));
   }));
+  breakAgents.forEach(a => a.breaks.forEach(b => {
+    const ms = parseSheetTime(b.start);
+    if (ms !== Infinity && dayMs(ms) === latestDay) perHour[new Date(ms).getUTCHours()] += b.secs / 60;
+  }));
+  document.getElementById('chHourlySub').textContent = latestDay === -Infinity
+    ? 'Line: break minutes started per hour'
+    : `Line: break minutes started per hour on ${new Date(latestDay * 86400000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
   const first = perHour.findIndex(v => v > 0);
   const last = perHour.length - 1 - [...perHour].reverse().findIndex(v => v > 0);
   setChartEmpty('chHourly', first === -1);
