@@ -958,3 +958,25 @@ tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 7
   .charts-grid { grid-template-columns: minmax(0, 1fr); }
   .view-tabs, .charts-section { padding-left: 16px; padding-right: 16px; }
 }
+
+/* ============ FROZEN AGENT NAME COLUMN ============ */
+/* Agent name stays visible while scrolling sideways: column 3 in the main table, column 2 in the break table. */
+#dataTable th:nth-child(3), #dataTable td:nth-child(3),
+#breakSection table th:nth-child(2), #breakSection table td:nth-child(2) {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  box-shadow: 1px 0 0 var(--border);
+}
+#dataTable td:nth-child(3), #breakSection table td:nth-child(2) { background: var(--bg-card); }
+#dataTable tbody tr:nth-child(even) td:nth-child(3),
+#breakSection table tbody tr:nth-child(even) td:nth-child(2) { background: #fafbfd; }
+#dataTable tbody tr:hover td:nth-child(3),
+#breakSection table tbody tr:hover td:nth-child(2) { background: #eff6ff; }
+#dataTable th:nth-child(3), #breakSection table th:nth-child(2) { background: #f8fafc; z-index: 11; }
+[data-theme="dark"] #dataTable tbody tr:nth-child(even) td:nth-child(3),
+[data-theme="dark"] #breakSection table tbody tr:nth-child(even) td:nth-child(2) { background: #111a2e; }
+[data-theme="dark"] #dataTable tbody tr:hover td:nth-child(3),
+[data-theme="dark"] #breakSection table tbody tr:hover td:nth-child(2) { background: #1b2a4a; }
+[data-theme="dark"] #dataTable th:nth-child(3),
+[data-theme="dark"] #breakSection table th:nth-child(2) { background: #0f172a; }
