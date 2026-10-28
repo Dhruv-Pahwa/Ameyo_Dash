@@ -1349,3 +1349,11 @@ function showToast(msg) {
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
 }
+
+// ---- Theme ----
+function toggleTheme() {
+  const root = document.documentElement;
+  const dark = root.getAttribute('data-theme') !== 'dark';
+  if (dark) root.setAttribute('data-theme', 'dark'); else root.removeAttribute('data-theme');
+  try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch (e) {}
+}

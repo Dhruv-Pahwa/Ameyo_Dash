@@ -874,3 +874,64 @@ tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 7
 }
 #uploadSubmitBtn:hover:not(:disabled) { background: var(--accent-hover); }
 #uploadSubmitBtn:disabled { background: var(--text-muted); border-color: var(--text-muted); opacity: 0.6; cursor: not-allowed; }
+
+/* ============ THEME TOGGLE + DARK THEME ============ */
+.header-right { display: flex; align-items: center; }
+.theme-toggle {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition);
+}
+.theme-toggle:hover { background: rgba(255, 255, 255, 0.28); }
+.theme-toggle .icon-sun { display: none; }
+[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-main: #0b1120;
+  --bg-card: #151e32;
+  --bg-card-hover: #1b2640;
+  --bg-surface: #151e32;
+  --bg-input: #0f172a;
+  --border: #263248;
+  --text-primary: #e5e9f0;
+  --text-secondary: #a5b0c2;
+  --text-muted: #6b7a93;
+  --accent-glow: rgba(59, 130, 246, 0.18);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.6);
+}
+[data-theme="dark"] .header { background: linear-gradient(135deg, #172554 0%, #1e40af 100%); }
+[data-theme="dark"] .multiselect-toggle:hover,
+[data-theme="dark"] .card:hover { border-color: #3b4a66; }
+[data-theme="dark"] .drop-zone { border-color: #3b4a66; }
+[data-theme="dark"] thead { background: #0f172a; }
+[data-theme="dark"] td { border-bottom-color: #1e293b; }
+[data-theme="dark"] tbody tr:hover,
+[data-theme="dark"] tbody tr:nth-child(even):hover { background: #1b2a4a; }
+[data-theme="dark"] tbody tr:nth-child(even) { background: #111a2e; }
+[data-theme="dark"] .campaign-badge { background: #1e3a8a; color: #bfdbfe; border-color: #1e40af; }
+[data-theme="dark"] .date-badge { background: #2e1f5e; color: #ddd6fe; border-color: #4c3a8a; }
+[data-theme="dark"] tr.summary-row { background: #162544 !important; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #3b4a66; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #55658a; }
+[data-theme="dark"] .campaign-stack { scrollbar-color: #3b4a66 transparent; }
+[data-theme="dark"] .type-direct { background: #052e22; color: #6ee7b7; border-color: #065f46; }
+[data-theme="dark"] .type-dda { background: #3a1d08; color: #fdba74; border-color: #7c2d12; }
+[data-theme="dark"] tr.row-break td { background: #2a1a0c; }
+[data-theme="dark"] .act-ready { background: #1e3a8a; color: #bfdbfe; }
+[data-theme="dark"] .act-break { background: #7c2d12; color: #fed7aa; }
+[data-theme="dark"] .act-gap { background: #263248; color: #a5b0c2; }
+[data-theme="dark"] .ad-on-t { color: #6ee7b7; }
+[data-theme="dark"] .ad-off-t { color: #fca5a5; }
+[data-theme="dark"] tr.row-date td { background: #111a2e; }
