@@ -585,17 +585,16 @@ function updateSourceBar() {
   const bar = document.getElementById('sourceBar');
   if (!bar) return;
   const v = state.view;
-  const day = state.uploadDays[state.uploadDayIndex];
   document.getElementById('sourceText').textContent = v === 'live'
     ? 'Showing live data from Google Sheet'
-    : (day ? `Showing uploaded data · ${day.label}` : 'Showing uploaded data');
+    : 'Showing uploaded data';
   document.getElementById('viewLiveBtn').classList.toggle('active', v === 'live');
 
   // One tab per uploaded day, between the Live tab and the Upload button.
   const tabs = document.getElementById('uploadTabs');
   if (tabs) {
     tabs.innerHTML = state.uploadDays.map((d, i) =>
-      `<button class="btn-source${v === 'upload' && i === state.uploadDayIndex ? ' active' : ''}" onclick="setUploadDay(${i})">${escapeHTML(d.label)}</button>`
+      `<button class="btn-source${v === 'upload' && i === state.uploadDayIndex ? ' active' : ''}" onclick="setUploadDay(${i})">Uploaded data${state.uploadDays.length > 1 ? ` ${i + 1}` : ''}</button>`
     ).join('');
   }
   bar.style.display = '';
