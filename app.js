@@ -24,7 +24,6 @@ const state = {
   breakText: '',
   liveBreak: null,
   uploadBreak: null,
-  uploadKind: 'prod', // which uploaded file type is shown: 'prod' | 'break'
   breakAgents: [],
   breakReasons: [],
   breakTotals: {},
@@ -38,6 +37,7 @@ const state = {
 // ---- Init ----
 document.addEventListener('DOMContentLoaded', () => {
   setupDragDrop();
+  updateSourceBar(); // tabs are usable right away, even while the sheet is still loading
   loadBundledFiles();
   document.addEventListener('click', (e) => {
     const cms = document.getElementById('campaignMultiselect');
@@ -50,16 +50,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadBundledFiles() {
   await Promise.all([loadSheet(), loadBreakSheet()]);
-  state.view = 'live';
+  // The sheet can finish loading after the user has already uploaded files: keep showing those.
+  if (state.view === 'live' || !(state.uploadSets.length || state.uploadBreak)) state.view = 'live';
   applyView();
   setInterval(refreshSheet, SHEET_REFRESH_MS);
+}
+
+// fetch() that gives up after 15s, so a slow or blocked sheet cannot keep the page loading forever.
+function fetchWithTimeout(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  return fetch(url, { cache: 'no-store', signal: ctrl.signal }).finally(() => clearTimeout(timer));
 }
 
 // ---- Google Sheet source (live data) ----
 // Returns true when the sheet content changed since the last load.
 async function loadSheet() {
   try {
-    const resp = await fetch(`${SHEET_CSV_URL}&t=${Date.now()}`, { cache: 'no-store' });
+    const resp = await fetchWithTimeout(`${SHEET_CSV_URL}&t=${Date.now()}`);
     if (!resp.ok) return false;
     const text = await resp.text();
     if (text === state.sheetText) { state.sheetUpdated = new Date(); return false; }
@@ -78,7 +86,7 @@ async function loadSheet() {
 // ---- Break breakdown (Google Sheet of ready/break segments) ----
 async function loadBreakSheet() {
   try {
-    const resp = await fetch(`${BREAK_SHEET_URL}&t=${Date.now()}`, { cache: 'no-store' });
+    const resp = await fetchWithTimeout(`${BREAK_SHEET_URL}&t=${Date.now()}`);
     if (!resp.ok) return false;
     const text = await resp.text();
     if (text === state.breakText) return false;
@@ -527,15 +535,18 @@ function showEmpty(message, showDrop) {
   ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper'].forEach(id => {
     document.getElementById(id).style.display = 'none';
   });
+  document.getElementById('loadingSpinner').style.display = 'none';
+  document.getElementById('emptyIcon').style.display = '';
   document.getElementById('emptyMessage').textContent = message;
   document.getElementById('emptyState').classList.remove('hidden');
   document.getElementById('dropZone').classList.toggle('hidden', !showDrop);
 }
 
 function applyView() {
-  const uploadedBreak = state.view === 'upload' && state.uploadKind === 'break' && state.uploadBreak;
-  if (state.view !== 'live' && !uploadedBreak) document.getElementById('breakSection').style.display = 'none';
-  if (uploadedBreak) {
+  // Uploaded break file with no productivity file: show the break table on its own.
+  const breakOnly = state.view === 'upload' && !state.uploadSets.length && state.uploadBreak;
+  if (!breakOnly) document.getElementById('breakSection').style.display = 'none';
+  if (breakOnly) {
     activateBreak(state.uploadBreak);
     renderBreakView();
   } else if (state.view === 'live') {
@@ -546,7 +557,7 @@ function applyView() {
       state.dataSets = [];
       showEmpty('No live data available in the Google Sheet yet.', false);
     }
-  } else if (state.uploadSets.length > 0 && state.uploadKind !== 'break') {
+  } else if (state.uploadSets.length > 0) {
     state.dataSets = state.uploadSets;
     mergeAndRender();
   } else {
@@ -556,12 +567,9 @@ function applyView() {
   updateSourceBar();
 }
 
-function setUploadKind(kind) {
-  state.uploadKind = kind;
-  applyView();
-}
-
 function setView(view) {
+  // The Uploaded data tab asks for files when nothing is uploaded yet, or when it is clicked again to replace them.
+  if (view === 'upload' && (state.view === 'upload' || (!state.uploadSets.length && !state.uploadBreak))) { openUploadModal(); return; }
   if (state.view === view) return;
   state.view = view;
   applyView();
@@ -574,14 +582,9 @@ function updateSourceBar() {
   document.getElementById('sourceText').textContent = v === 'live'
     ? 'Showing live data from Google Sheet'
     : (!state.uploadSets.length && !state.uploadBreak ? 'Showing uploaded data · nothing uploaded yet'
-        : state.uploadKind === 'break' && state.uploadBreak ? 'Showing uploaded break data' : 'Showing uploaded data');
+        : !state.uploadSets.length ? 'Showing uploaded break data' : 'Showing uploaded data');
   document.getElementById('viewLiveBtn').classList.toggle('active', v === 'live');
   document.getElementById('viewUploadBtn').classList.toggle('active', v === 'upload');
-  // Both kinds uploaded: let the user pick which one to look at.
-  const both = v === 'upload' && state.uploadSets.length > 0 && !!state.uploadBreak;
-  document.getElementById('uploadKindBox').style.display = both ? '' : 'none';
-  document.getElementById('kindProdBtn').classList.toggle('active', state.uploadKind !== 'break');
-  document.getElementById('kindBreakBtn').classList.toggle('active', state.uploadKind === 'break');
   bar.style.display = '';
 }
 
@@ -934,7 +937,7 @@ function renderSummary() {
   const n = rows.length;
 
   if (n === 0) {
-    ['cardStaffed', 'cardAutoOn', 'cardAutoOff', 'cardManual', 'cardBreak'].forEach(id => {
+    ['cardStaffed', 'cardAutoOn', 'cardAutoOff', 'cardTalk', 'cardManual', 'cardBreak'].forEach(id => {
       document.getElementById(id).textContent = '0:00:00';
     });
     return;
@@ -949,6 +952,7 @@ function renderSummary() {
   document.getElementById('cardStaffed').textContent = avgTime('Total Staffed Duration');
   document.getElementById('cardAutoOn').textContent = avgTime('Auto Call-On Duration');
   document.getElementById('cardAutoOff').textContent = avgTime('Auto Call-Off Duration');
+  document.getElementById('cardTalk').textContent = avgTime('Total Talk Time in Interval');
   document.getElementById('cardManual').textContent = avgTime('Manual Calls Talk Time');
   document.getElementById('cardBreak').textContent = avgTime('Total Break Duration');
 }
@@ -1062,19 +1066,39 @@ function sortTable(colIdx) {
 }
 
 // ---- File Upload & Drag/Drop ----
-function handleFileUpload(event) {
-  const files = event.target.files;
-  if (!files.length) return;
-  processUploadedFiles(files);
-  event.target.value = '';
+function openUploadModal() {
+  ['prodFileInput', 'breakFileInput'].forEach(id => { document.getElementById(id).value = ''; });
+  updateUploadModal();
+  document.getElementById('uploadModal').style.display = 'flex';
 }
 
-function finishUpload() {
-  state.uploadSets = [...state.dataSets];
-  state.uploadBreak = pendingBreakRows.length ? summarizeBreaks(pendingBreakRows) : null;
-  state.uploadKind = state.uploadSets.length ? 'prod' : 'break';
-  state.view = 'upload';
-  applyView();
+function closeUploadModal() {
+  document.getElementById('uploadModal').style.display = 'none';
+}
+
+// Upload is enabled as soon as at least one of the two inputs has a file.
+function updateUploadModal() {
+  const count = ['prodFileInput', 'breakFileInput']
+    .reduce((n, id) => n + document.getElementById(id).files.length, 0);
+  document.getElementById('uploadSubmitBtn').disabled = count === 0;
+}
+
+function submitUploadModal() {
+  const files = [];
+  ['prodFileInput', 'breakFileInput'].forEach(id => files.push(...document.getElementById(id).files));
+  if (!files.length) return;
+  closeUploadModal();
+  processUploadedFiles(files);
+}
+
+// Read a File as text, returning a Promise (replaces bare FileReader callbacks).
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('read error'));
+    reader.readAsText(file);
+  });
 }
 
 // Break exports list one row per break (they have a "Break Reason" column).
@@ -1084,34 +1108,43 @@ function isBreakFile(text) {
   return first.split(',').map(h => h.trim()).includes('Break Reason');
 }
 
-function processUploadedFiles(files) {
-  // User is uploading their own files — clear bundled data and replace
+async function processUploadedFiles(files) {
   state.dataSets = [];
   pendingBreakRows = [];
-  let processed = 0;
-  const total = files.length;
 
-  Array.from(files).forEach(file => {
-    if (!file.name.endsWith('.csv')) {
-      showToast(`Skipped "${file.name}" — only CSV files are supported`);
-      processed++;
-      if (processed === total) finishUpload();
-      return;
+  for (const file of Array.from(files)) {
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      showToast(`Skipped "${file.name}" \u2014 only CSV files are supported`);
+      continue;
     }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target.result;
+    try {
+      const text = await readFileAsText(file);
       if (isBreakFile(text)) {
         pendingBreakRows = pendingBreakRows.concat(parseCSV(text).rows);
       } else {
         processCSV(text, file.name, extractDateLabel(file.name), false);
       }
-      processed++;
-      if (processed === total) finishUpload();
-    };
-    reader.readAsText(file);
-  });
+    } catch (err) {
+      showToast(`Could not read "${file.name}"`);
+    }
+  }
+
+  // All files read \u2014 build the uploaded-data state and show it.
+  state.uploadSets = [...state.dataSets];
+  try {
+    state.uploadBreak = pendingBreakRows.length ? summarizeBreaks(pendingBreakRows) : null;
+  } catch (err) {
+    console.error(err);
+    state.uploadBreak = null;
+  }
+
+  if (!state.uploadSets.length && !state.uploadBreak) {
+    showToast('No usable data found in the uploaded files');
+    return;
+  }
+
+  state.view = 'upload';
+  applyView();
 }
 
 function setupDragDrop() {
@@ -1137,7 +1170,7 @@ function setupDragDrop() {
     if (e.dataTransfer.files.length) processUploadedFiles(e.dataTransfer.files);
   });
 
-  dropZone.addEventListener('click', () => document.getElementById('fileInput').click());
+  dropZone.addEventListener('click', openUploadModal);
 }
 
 // ---- Export ----

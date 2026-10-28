@@ -30,35 +30,39 @@
         <p class="header-sub">AGENT Productivity Summary • Interactive Pivot & Multi-Campaign Analyzer</p>
       </div>
     </div>
-    <div class="header-right">
-      <button class="btn btn-primary" id="uploadBtn" onclick="document.getElementById('fileInput').click()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-          <polyline points="17 8 12 3 7 8" />
-          <line x1="12" y1="3" x2="12" y2="15" />
-        </svg>
-        Upload CSV
-      </button>
-      <input type="file" id="fileInput" accept=".csv" multiple style="display:none"
-        onchange="handleFileUpload(event)" />
-    </div>
   </header>
+
+  <!-- ============ UPLOAD POPUP ============ -->
+  <div class="modal-backdrop" id="uploadModal" style="display:none" onclick="if(event.target===this)closeUploadModal()">
+    <div class="modal-box">
+      <h3 class="modal-title">Upload files</h3>
+      <p class="modal-sub">Choose one or both. Either file works on its own.</p>
+      <label class="modal-field">
+        <span>Productivity file (CSV)</span>
+        <input type="file" id="prodFileInput" accept=".csv" multiple onchange="updateUploadModal()" />
+      </label>
+      <label class="modal-field">
+        <span>Break file (CSV)</span>
+        <input type="file" id="breakFileInput" accept=".csv" multiple onchange="updateUploadModal()" />
+      </label>
+      <div class="modal-actions">
+        <button class="btn-source" onclick="closeUploadModal()">Cancel</button>
+        <button class="btn btn-primary" id="uploadSubmitBtn" onclick="submitUploadModal()" disabled>Generate Dashboard</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ============ DATA SOURCE BAR ============ -->
   <div class="source-bar" id="sourceBar" style="display:none">
     <span id="sourceText"></span>
     <div class="source-actions">
-      <span id="uploadKindBox" style="display:none">
-        <button class="btn-source" id="kindProdBtn" onclick="setUploadKind('prod')">Productivity file</button>
-        <button class="btn-source" id="kindBreakBtn" onclick="setUploadKind('break')">Break file</button>
-      </span>
       <button class="btn-source" id="viewLiveBtn" onclick="setView('live')">Live data</button>
       <button class="btn-source" id="viewUploadBtn" onclick="setView('upload')">Uploaded data</button>
     </div>
   </div>
 
   <!-- ============ DRAG & DROP ZONE ============ -->
-  <div class="drop-zone" id="dropZone">
+  <div class="drop-zone hidden" id="dropZone">
     <div class="drop-zone-inner">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
         opacity="0.5">
@@ -67,7 +71,7 @@
         <line x1="12" y1="3" x2="12" y2="15" />
       </svg>
       <p class="drop-text">Drag & drop CSV files here</p>
-      <p class="drop-sub">or click "Upload CSV" button above</p>
+      <p class="drop-sub">or click to open the upload popup</p>
     </div>
   </div>
 
@@ -177,6 +181,11 @@
       <span class="card-label">AVG AUTO CALL-OFF</span>
       <span class="card-value" id="cardAutoOff">0:00:00</span>
       <span class="card-sub">Autodial paused duration</span>
+    </div>
+    <div class="card">
+      <span class="card-label">AVG TOTAL TALK TIME</span>
+      <span class="card-value" id="cardTalk">0:00:00</span>
+      <span class="card-sub">Total talk time in interval</span>
     </div>
     <div class="card">
       <span class="card-label">AVG MANUAL TALK TIME</span>
@@ -373,14 +382,15 @@
 
   <!-- ============ EMPTY STATE ============ -->
   <div class="empty-state" id="emptyState">
-    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
+    <div class="spinner" id="loadingSpinner"></div>
+    <svg id="emptyIcon" style="display:none" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3">
       <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
       <polyline points="14 2 14 8 20 8" />
       <line x1="16" y1="13" x2="8" y2="13" />
       <line x1="16" y1="17" x2="8" y2="17" />
       <polyline points="10 9 9 9 8 9" />
     </svg>
-    <p id="emptyMessage">Loading live data…</p>
+    <p id="emptyMessage">Loading your data…</p>
   </div>
 
   <script src="teamleads.js"></script>
