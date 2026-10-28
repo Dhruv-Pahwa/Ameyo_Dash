@@ -864,3 +864,13 @@ tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 7
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Generate Dashboard button: .btn-primary is white-on-translucent (built for the header), so it needs its own colours on the white popup */
+#uploadSubmitBtn {
+  background: var(--accent);
+  color: #fff;
+  border: 1px solid var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+#uploadSubmitBtn:hover:not(:disabled) { background: var(--accent-hover); }
+#uploadSubmitBtn:disabled { background: var(--text-muted); border-color: var(--text-muted); opacity: 0.6; cursor: not-allowed; }
