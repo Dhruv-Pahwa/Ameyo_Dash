@@ -440,7 +440,7 @@ function escapeHTML(str) {
 // Live view: shown below the productivity table. Uploaded break file: shown on its own.
 function renderBreakView() {
   if (state.view !== 'live') {
-    ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper'].forEach(id => {
+    ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper', 'viewTabs', 'chartsSection'].forEach(id => {
       document.getElementById(id).style.display = 'none';
     });
     document.getElementById('emptyState').classList.add('hidden');
@@ -534,7 +534,7 @@ async function refreshSheet(manual) {
 
 function showEmpty(message, showDrop) {
   document.getElementById('breakSection').style.display = 'none';
-  ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper'].forEach(id => {
+  ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper', 'viewTabs', 'chartsSection'].forEach(id => {
     document.getElementById(id).style.display = 'none';
   });
   document.getElementById('loadingSpinner').style.display = 'none';
@@ -923,6 +923,7 @@ function applyFilters() {
   state.filteredRows = mergeByAgent(matched);
   renderSummary();
   renderTable();
+  applyMainTab();
 }
 
 // One row per agent (and date): campaigns are listed together instead of repeating the agent.
@@ -1356,4 +1357,5 @@ function toggleTheme() {
   const dark = root.getAttribute('data-theme') !== 'dark';
   if (dark) root.setAttribute('data-theme', 'dark'); else root.removeAttribute('data-theme');
   try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch (e) {}
+  if (typeof renderCharts === 'function') renderCharts();
 }

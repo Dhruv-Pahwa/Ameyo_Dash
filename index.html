@@ -240,6 +240,69 @@
     </div>
   </div>
 
+  <!-- ============ TABLE / CHARTS TABS ============ -->
+  <div class="view-tabs" id="viewTabs" style="display:none">
+    <button class="btn-source active" id="tabTableBtn" onclick="setMainTab('table')">Table</button>
+    <button class="btn-source" id="tabChartsBtn" onclick="setMainTab('charts')">Charts</button>
+  </div>
+
+  <!-- ============ CHARTS ============ -->
+  <div class="charts-section" id="chartsSection" style="display:none">
+    <p class="charts-note"></p>
+    <div class="charts-grid">
+    <div class="chart-card">
+      <h3 class="chart-title">Highest ready duration</h3>
+      <p class="chart-sub">Top 10 agents</p>
+      <div class="chart-box"><canvas id="chHighReady"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
+    </div>
+    <div class="chart-card">
+      <h3 class="chart-title">Lowest ready duration</h3>
+      <p class="chart-sub">Bottom 10 agents (logged in)</p>
+      <div class="chart-box"><canvas id="chLowReady"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
+    </div>
+    <div class="chart-card">
+      <h3 class="chart-title">Highest break duration</h3>
+      <p class="chart-sub">Top 10 agents</p>
+      <div class="chart-box"><canvas id="chHighBreak"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
+    </div>
+    <div class="chart-card">
+      <h3 class="chart-title">Lowest break duration</h3>
+      <p class="chart-sub">Bottom 10 agents with a break</p>
+      <div class="chart-box"><canvas id="chLowBreak"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
+    </div>
+    <div class="chart-card">
+      <h3 class="chart-title">Break reasons</h3>
+      <p class="chart-sub">Share of total break time</p>
+      <div class="chart-box"><canvas id="chReasons"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
+    </div>
+    <div class="chart-card">
+      <h3 class="chart-title">Auto call-on vs call-off</h3>
+      <p class="chart-sub">Share of total autodial time</p>
+      <div class="chart-box"><canvas id="chAuto"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
+    </div>
+    <div class="chart-card">
+      <h3 class="chart-title">Staffed hours distribution</h3>
+      <p class="chart-sub">Histogram: agents per hours-logged-in bucket</p>
+      <div class="chart-box"><canvas id="chHist"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
+    </div>
+    <div class="chart-card">
+      <h3 class="chart-title">Breaks through the day</h3>
+      <p class="chart-sub">Line: break minutes started per hour</p>
+      <div class="chart-box"><canvas id="chHourly"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
+    </div>
+    <div class="chart-card">
+      <h3 class="chart-title">Highest talk time</h3>
+      <p class="chart-sub">Top 10 agents</p>
+      <div class="chart-box"><canvas id="chTopTalk"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
+    </div>
+    <div class="chart-card chart-wide">
+      <h3 class="chart-title">By team lead</h3>
+      <p class="chart-sub">Average ready, break and talk per agent</p>
+      <div class="chart-box"><canvas id="chLeads"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
+    </div>
+    </div>
+  </div>
+
   <!-- ============ DATA TABLE ============ -->
   <div class="table-wrapper" id="tableWrapper" style="display:none">
     <div class="table-header">
@@ -436,7 +499,9 @@
   </div>
 
   <script src="teamleads.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="app.js"></script>
+  <script src="charts.js"></script>
 </body>
 
 </html>
