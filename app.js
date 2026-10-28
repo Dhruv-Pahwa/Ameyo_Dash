@@ -1162,7 +1162,10 @@ async function processUploadedFiles(files) {
   // Turn each day into a dataset + break summary.
   state.uploadDays = [...days.values()].map(d => ({
     label: d.label,
-    set: d.prodRows.length ? { fileName: d.label, dateLabel: d.label, rows: d.prodRows, isBundled: false } : null,
+    // A day with only a break/session file still gets the full dashboard: its table is built from the session rows.
+    set: (d.prodRows.length || d.breakRows.length)
+      ? { fileName: d.label, dateLabel: d.label, rows: d.prodRows.length ? d.prodRows : summarizeSessionRows(d.breakRows), isBundled: false }
+      : null,
     breakData: d.breakRows.length ? safeSummarizeBreaks(d.breakRows) : null
   })).filter(d => d.set || d.breakData);
 
@@ -1171,7 +1174,13 @@ async function processUploadedFiles(files) {
     return;
   }
 
-  setUploadDay(0);
+  try {
+    setUploadDay(0);
+  } catch (err) {
+    console.error(err);
+    showToast(`Could not generate the dashboard: ${err.message}`);
+    return;
+  }
   showToast(`Loaded ${state.uploadDays.length} day${state.uploadDays.length === 1 ? '' : 's'} of uploaded data`);
 }
 
