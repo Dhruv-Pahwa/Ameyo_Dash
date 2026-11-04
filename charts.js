@@ -23,20 +23,20 @@ function applyMainTab() {
   const section = document.getElementById('chartsSection');
   const trends = document.getElementById('trendsSection');
   if (!tabs || !wrap || !section || !trends) return;
-  // History belongs to the live sheet; uploaded days have no saved history.
-  const live = state.view === 'live';
-  if (!live && chartState.tab === 'trends') chartState.tab = 'table';
-  const tab = chartState.tab;
-  tabs.style.display = '';
-  document.getElementById('tabTableBtn').classList.toggle('active', tab === 'table');
-  document.getElementById('tabChartsBtn').classList.toggle('active', tab === 'charts');
-  document.getElementById('tabTrendsBtn').classList.toggle('active', tab === 'trends');
-  document.getElementById('tabTrendsBtn').style.display = live ? '' : 'none';
-  wrap.style.display = tab === 'table' ? '' : 'none';
-  section.style.display = tab === 'charts' ? '' : 'none';
-  trends.style.display = tab === 'trends' ? '' : 'none';
-  if (tab === 'charts') renderCharts();
-  if (tab === 'trends') renderTrends();
+  // The Trends view replaces the table, cards and charts; it keeps the filters bar.
+  const trendsView = state.view === 'trends';
+  const charts = chartState.tab === 'charts';
+  tabs.style.display = trendsView ? 'none' : '';
+  document.getElementById('tabTableBtn').classList.toggle('active', !charts);
+  document.getElementById('tabChartsBtn').classList.toggle('active', charts);
+  if (trendsView) {
+    ['summaryCards', 'exportBar'].forEach(id => { document.getElementById(id).style.display = 'none'; });
+  }
+  wrap.style.display = !trendsView && !charts ? '' : 'none';
+  section.style.display = !trendsView && charts ? '' : 'none';
+  trends.style.display = trendsView ? '' : 'none';
+  if (trendsView) renderTrends();
+  else if (charts) renderCharts();
 }
 
 function readySecs(r) {

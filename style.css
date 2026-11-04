@@ -992,4 +992,14 @@ tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 7
 .spark-cell { white-space: nowrap; }
 .spark-btn { border: none; background: transparent; padding: 2px 4px; border-radius: 6px; cursor: pointer; line-height: 0; }
 .spark-btn:hover { background: var(--border); }
-.agent-trend-chart { height: 220px; margin: 12px 24px; }
+
+.history-pick { display: inline-flex; }
+#historyDateSelect { cursor: pointer; }
+#historyDateSelect.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.trend-controls { align-items: flex-end; }
+.trend-presets { display: flex; gap: 8px; }
+
+.spark-val { font-size: 12px; color: var(--text-secondary); margin-left: 6px; }
+.agent-trend-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; padding: 12px 24px; }
+.agent-trend-grid .chart-box { height: 150px; margin: 4px 0 0; }
+@media (max-width: 700px) { .agent-trend-grid { grid-template-columns: minmax(0, 1fr); } }

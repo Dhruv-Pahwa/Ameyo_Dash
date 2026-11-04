@@ -25,6 +25,8 @@ const state = {
   sheetUpdated: null,
   breakText: '',
   liveBreak: null,
+  histDate: null,       // a saved day (YYYY-MM-DD) shown in place of the live sheet
+  pastPick: null,       // the saved day picked last, reopened by the Past data button
   uploadBreak: null,
   breakAgents: [],
   breakReasons: [],
@@ -33,7 +35,7 @@ const state = {
   breakFiltered: [],
   agentType: { main: '', break: '' }, // '' = all, otherwise 'Direct' | 'DDA' | 'none' (not in the list)
   leads: { main: { all: [], selected: new Set() }, break: { all: [], selected: new Set() } },
-  view: 'live' // 'live' (Google Sheet: productivity + breaks) | 'upload'
+  view: 'live' // 'live' (Google Sheet, or a saved day when histDate is set) | 'trends' | 'upload'
 };
 
 // ---- Init ----
@@ -313,7 +315,9 @@ function setAgentType(key, value) {
 
 // Break data that goes with the productivity table being shown (live sheet or uploaded break file).
 function breakData() {
-  return state.view === 'live' ? state.liveBreak : state.uploadBreak;
+  if (state.view !== 'live') return state.uploadBreak;
+  const h = histDay();
+  return state.histDate ? (h && h.breaks) : state.liveBreak;
 }
 
 function breakAgentFor(userId) {
@@ -527,7 +531,7 @@ function filterBreaks(value) {
 
 async function refreshSheet(manual) {
   const [changed, breakChanged] = await Promise.all([loadSheet(), loadBreakSheet()]);
-  if (state.view === 'live' && (changed || breakChanged)) applyView();
+  if (state.view === 'live' && !state.histDate && (changed || breakChanged)) applyView();
   updateSourceBar();
   if (manual === true) showToast(changed || breakChanged ? 'Data updated' : 'Data is up to date');
 }
@@ -551,10 +555,28 @@ function applyView() {
   if (breakOnly) {
     activateBreak(state.uploadBreak);
     renderBreakView();
-  } else if (state.view === 'live') {
-    if (state.sheetSet) {
-      state.dataSets = [state.sheetSet];
+  } else if (state.view === 'trends') {
+    // The filters (campaign, team lead, agent type) are filled from the live sheet, or the newest saved day.
+    const last = trendState.days[trendState.days.length - 1];
+    const set = state.sheetSet || (last ? { fileName: last.date, dateLabel: last.date, rows: last.rows, isBundled: false } : null);
+    if (set) {
+      state.dataSets = [set];
       mergeAndRender();
+    } else {
+      state.dataSets = [];
+      showEmpty('No live data or saved history yet.', false);
+    }
+  } else if (state.view === 'live') {
+    const h = histDay();
+    const set = state.histDate
+      ? (h && h.rows.length ? { fileName: h.date, dateLabel: h.date, rows: h.rows, isBundled: false } : null)
+      : state.sheetSet;
+    if (set) {
+      state.dataSets = [set];
+      mergeAndRender();
+    } else if (state.histDate) {
+      state.dataSets = [];
+      showEmpty('No data saved for this day.', false);
     } else {
       state.dataSets = [];
       showEmpty('No live data available in the Google Sheet yet.', false);
@@ -576,7 +598,8 @@ function setView(view) {
     setUploadDay(state.uploadDayIndex < state.uploadDays.length ? state.uploadDayIndex : 0);
     return;
   }
-  if (state.view === view) return;
+  if (state.view === view && !(view === 'live' && state.histDate)) return;
+  state.histDate = null;
   state.view = view;
   applyView();
 }
@@ -585,10 +608,18 @@ function updateSourceBar() {
   const bar = document.getElementById('sourceBar');
   if (!bar) return;
   const v = state.view;
-  document.getElementById('sourceText').textContent = v === 'live'
-    ? 'Showing live data from Google Sheet'
+  const past = v === 'live' && !!state.histDate;
+  document.getElementById('sourceText').textContent =
+    v === 'trends' ? 'Trends across the saved days'
+    : past ? `Showing the saved sheet for ${fullDayLabel(state.histDate)} (end-of-day snapshot)`
+    : v === 'live' ? 'Showing live data from Google Sheet'
     : 'Showing uploaded data';
-  document.getElementById('viewLiveBtn').classList.toggle('active', v === 'live');
+  document.getElementById('viewLiveBtn').classList.toggle('active', v === 'live' && !past);
+  document.getElementById('viewPastBtn').classList.toggle('active', past);
+  document.getElementById('viewTrendsBtn').classList.toggle('active', v === 'trends');
+  document.getElementById('historyPick').style.display = past ? '' : 'none';
+  const hs = document.getElementById('historyDateSelect');
+  if (hs && past) hs.value = state.histDate;
 
   // One tab per uploaded day, between the Live tab and the Upload button.
   const tabs = document.getElementById('uploadTabs');
@@ -1004,8 +1035,6 @@ function renderTable() {
   const bd = breakData();
   const reasons = bd ? bd.reasons : [];
   syncBreakHeaders(reasons);
-  syncTrendHeader();
-  const showTrend = trendColumnVisible();
 
   const rows = state.filteredRows;
   document.getElementById('tableCount').textContent = `${rows.length} record${rows.length !== 1 ? 's' : ''}`;
@@ -1026,7 +1055,6 @@ function renderTable() {
       <td class="dur-cell">${r['Talk Time in Auto Dial'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Total Break Duration'] || '00:00:00'}${breakAgentFor(r['User ID']) ? ` <button class="info-btn" title="Break timeline" onclick="openBreakDetailFor('${escapeHTML((r['User ID'] || '').trim().toLowerCase())}')">i</button>` : ''}</td>
       ${breakReasonCells(r, reasons)}
-      ${showTrend ? `<td class="spark-cell">${sparkline(agentKey(r))}</td>` : ''}
       ${showDates ? `<td><span class="date-badge">${r._date || '—'}</span></td>` : ''}
     `;
     tbody.appendChild(tr);
@@ -1037,7 +1065,7 @@ function renderTable() {
 function syncBreakHeaders(reasons) {
   const row = document.querySelector('#dataTable thead tr');
   row.querySelectorAll('th.break-extra').forEach(th => th.remove());
-  const before = document.getElementById('trendColumnHeader');
+  const before = document.getElementById('dateColumnHeader');
   reasons.forEach(reason => {
     const th = document.createElement('th');
     th.className = 'break-extra';

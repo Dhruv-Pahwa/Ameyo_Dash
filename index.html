@@ -67,6 +67,11 @@
     <span id="sourceText"></span>
     <div class="source-actions">
       <button class="btn-source" id="viewLiveBtn" onclick="setView('live')">Live data</button>
+      <button class="btn-source" id="viewPastBtn" onclick="openPastData()">Past data</button>
+      <label class="history-pick" id="historyPick" style="display:none">
+        <select class="btn-source active" id="historyDateSelect" onchange="setHistoryDate(this.value)"></select>
+      </label>
+      <button class="btn-source" id="viewTrendsBtn" onclick="setView('trends')">Trends</button>
       <span id="uploadTabs"></span>
       <button class="btn-source" id="uploadMoreBtn" onclick="openUploadModal()">+ Upload</button>
     </div>
@@ -244,7 +249,6 @@
   <div class="view-tabs" id="viewTabs" style="display:none">
     <button class="btn-source active" id="tabTableBtn" onclick="setMainTab('table')">Table</button>
     <button class="btn-source" id="tabChartsBtn" onclick="setMainTab('charts')">Charts</button>
-    <button class="btn-source" id="tabTrendsBtn" onclick="setMainTab('trends')">Trends</button>
   </div>
 
   <!-- ============ CHARTS ============ -->
@@ -302,55 +306,34 @@
   <!-- ============ TRENDS ============ -->
   <div class="charts-section" id="trendsSection" style="display:none">
     <div class="trend-controls">
-      <label class="filter-label">PERIOD
-        <select class="filter-select" id="trendRange" onchange="setTrendRange(this.value)">
-          <option value="7">Last 7 days</option>
-          <option value="15">Last 15 days</option>
-          <option value="30">Last 30 days</option>
-        </select>
-      </label>
-      <label class="filter-label">METRIC (chart and table sparklines)
-        <select class="filter-select" id="trendMetric" onchange="setTrendMetric(this.value)">
-          <option value="ready">Avg ready time</option>
-          <option value="brk">Avg break time</option>
-          <option value="breakPct">Break % of staffed</option>
-          <option value="talk">Avg talk time</option>
-          <option value="staffed">Avg staffed time</option>
-          <option value="autoOn">Avg auto call-on</option>
-        </select>
-      </label>
+      <div class="trend-presets">
+        <button class="btn-source" data-days="7" onclick="setTrendPreset(7)">Last 7 days</button>
+        <button class="btn-source" data-days="15" onclick="setTrendPreset(15)">Last 15 days</button>
+        <button class="btn-source" data-days="30" onclick="setTrendPreset(30)">Last 30 days</button>
+      </div>
     </div>
     <p class="charts-note" id="trendsNote"></p>
     <div id="trendsBody" style="display:none">
       <div class="summary-cards" id="trendCards"></div>
-      <div class="charts-grid">
-        <div class="chart-card chart-wide">
-          <h3 class="chart-title" id="trMetricTitle">Trend per day</h3>
-          <p class="chart-sub">Team average for the agents left after the filters</p>
-          <div class="chart-box"><canvas id="chTrMetric"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
-        </div>
-        <div class="chart-card">
-          <h3 class="chart-title">Ready vs break</h3>
-          <p class="chart-sub">Average staffed time per agent, split into ready and break</p>
-          <div class="chart-box"><canvas id="chTrSplit"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
-        </div>
-        <div class="chart-card">
-          <h3 class="chart-title">Agents logged in</h3>
-          <p class="chart-sub">Agents with staffed time each day</p>
-          <div class="chart-box"><canvas id="chTrAgents"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div>
-        </div>
-        <div class="chart-card chart-wide">
-          <h3 class="chart-title">Break reasons per day</h3>
-          <p class="chart-sub">Average break time per agent, by reason</p>
-          <div class="chart-box"><canvas id="chTrReasons"></canvas><p class="chart-empty" style="display:none">No break data for these filters</p></div>
-        </div>
-      </div>
+      <div class="charts-grid" id="trendCharts"></div>
       <div class="table-wrapper trend-table">
         <div class="table-header"><h2 class="table-title">Day by day</h2></div>
         <div class="table-scroll">
           <table>
             <thead><tr><th>Date</th><th>Agents</th><th>Avg staffed</th><th>Avg ready</th><th>Avg break</th><th>Break %</th><th>Avg talk</th><th>Avg auto call-on</th></tr></thead>
             <tbody id="trendTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="table-wrapper trend-table">
+        <div class="table-header">
+          <h2 class="table-title">Agent trends</h2>
+          <span class="table-count" id="trendAgentCount"></span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead id="trendAgentHead"></thead>
+            <tbody id="trendAgentBody"></tbody>
           </table>
         </div>
       </div>
@@ -443,9 +426,6 @@
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </th>
-            <th id="trendColumnHeader" style="display:none">
-              <span id="trendColumnLabel">Trend</span>
-            </th>
             <th id="dateColumnHeader">
               <span>Date</span>
             </th>
@@ -523,7 +503,7 @@
         </div>
         <button class="modal-close" onclick="closeAgentTrend()" aria-label="Close">&times;</button>
       </div>
-      <div class="chart-box agent-trend-chart"><canvas id="chAgentTrend"></canvas></div>
+      <div class="agent-trend-grid" id="agentTrendCharts"></div>
       <div class="table-scroll">
         <table>
           <thead><tr><th>Date</th><th>Staffed</th><th>Ready</th><th>Break</th><th>Break %</th><th>Auto call-on</th><th>Talk time</th></tr></thead>
