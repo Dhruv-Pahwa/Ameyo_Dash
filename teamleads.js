@@ -367,6 +367,8 @@ anas.siddiqui@ambak.com	syed.adil@ambak.com
 rohit.gowalkar@ambak.com	ashad.pirzade@ambak.com
 megha.kumari@ambak.com	manoj.mittal@ambak.com
 rohit.chandel@ambak.com	sanchit.sisodiya@ambak.com
+pooja.rani1@ambak.com	sanchit.sisodiya@ambak.com
+neha.3@ambak.com	sanchit.sisodiya@ambak.com
 `;
 
 // email (lowercase) -> team lead email (lowercase)
@@ -410,7 +412,7 @@ shalu.kumari@ambak.com	Direct
 ankush.mittal@ambak.com	Direct
 abhishek.kumar1@ambak.com	Direct
 dil.khush@ambak.com	Direct
-megha.kumari@ambak.com	Direct
+megha.kumari@ambak.com	DDA
 rohit.chandel@ambak.com	Direct
 komal.garg@ambak.com	DDA
 ravi.chaudhary@ambak.com	DDA
@@ -418,6 +420,8 @@ ritika.kumari@ambak.com	DDA
 shivam.yadav1@ambak.com	DDA
 sonu.dayma@ambak.com	DDA
 sunil.rajput@ambak.com	DDA
+pooja.rani1@ambak.com	DDA
+neha.3@ambak.com	Direct
 `;
 
 const AGENT_TYPE_BY_USER = {};
