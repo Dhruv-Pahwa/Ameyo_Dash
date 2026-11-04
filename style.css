@@ -980,3 +980,16 @@ tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 7
 [data-theme="dark"] #breakSection table tbody tr:hover td:nth-child(2) { background: #1b2a4a; }
 [data-theme="dark"] #dataTable th:nth-child(3),
 [data-theme="dark"] #breakSection table th:nth-child(2) { background: #0f172a; }
+
+/* ============ TRENDS TAB ============ */
+.trend-controls { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; }
+.trend-controls .filter-label { display: flex; flex-direction: column; gap: 6px; }
+#trendCards { padding: 0 0 16px; }
+.trend-table { margin-top: 16px; }
+.delta-good { color: #16a34a; font-weight: 600; }
+.delta-bad { color: #dc2626; font-weight: 600; }
+.delta-flat { color: var(--text-muted); }
+.spark-cell { white-space: nowrap; }
+.spark-btn { border: none; background: transparent; padding: 2px 4px; border-radius: 6px; cursor: pointer; line-height: 0; }
+.spark-btn:hover { background: var(--border); }
+.agent-trend-chart { height: 220px; margin: 12px 24px; }

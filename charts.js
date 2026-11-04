@@ -21,14 +21,22 @@ function applyMainTab() {
   const tabs = document.getElementById('viewTabs');
   const wrap = document.getElementById('tableWrapper');
   const section = document.getElementById('chartsSection');
-  if (!tabs || !wrap || !section) return;
-  const charts = chartState.tab === 'charts';
+  const trends = document.getElementById('trendsSection');
+  if (!tabs || !wrap || !section || !trends) return;
+  // History belongs to the live sheet; uploaded days have no saved history.
+  const live = state.view === 'live';
+  if (!live && chartState.tab === 'trends') chartState.tab = 'table';
+  const tab = chartState.tab;
   tabs.style.display = '';
-  document.getElementById('tabTableBtn').classList.toggle('active', !charts);
-  document.getElementById('tabChartsBtn').classList.toggle('active', charts);
-  wrap.style.display = charts ? 'none' : '';
-  section.style.display = charts ? '' : 'none';
-  if (charts) renderCharts();
+  document.getElementById('tabTableBtn').classList.toggle('active', tab === 'table');
+  document.getElementById('tabChartsBtn').classList.toggle('active', tab === 'charts');
+  document.getElementById('tabTrendsBtn').classList.toggle('active', tab === 'trends');
+  document.getElementById('tabTrendsBtn').style.display = live ? '' : 'none';
+  wrap.style.display = tab === 'table' ? '' : 'none';
+  section.style.display = tab === 'charts' ? '' : 'none';
+  trends.style.display = tab === 'trends' ? '' : 'none';
+  if (tab === 'charts') renderCharts();
+  if (tab === 'trends') renderTrends();
 }
 
 function readySecs(r) {

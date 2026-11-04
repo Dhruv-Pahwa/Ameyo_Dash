@@ -440,7 +440,7 @@ function escapeHTML(str) {
 // Live view: shown below the productivity table. Uploaded break file: shown on its own.
 function renderBreakView() {
   if (state.view !== 'live') {
-    ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper', 'viewTabs', 'chartsSection'].forEach(id => {
+    ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper', 'viewTabs', 'chartsSection', 'trendsSection'].forEach(id => {
       document.getElementById(id).style.display = 'none';
     });
     document.getElementById('emptyState').classList.add('hidden');
@@ -534,7 +534,7 @@ async function refreshSheet(manual) {
 
 function showEmpty(message, showDrop) {
   document.getElementById('breakSection').style.display = 'none';
-  ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper', 'viewTabs', 'chartsSection'].forEach(id => {
+  ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper', 'viewTabs', 'chartsSection', 'trendsSection'].forEach(id => {
     document.getElementById(id).style.display = 'none';
   });
   document.getElementById('loadingSpinner').style.display = 'none';
@@ -1004,6 +1004,8 @@ function renderTable() {
   const bd = breakData();
   const reasons = bd ? bd.reasons : [];
   syncBreakHeaders(reasons);
+  syncTrendHeader();
+  const showTrend = trendColumnVisible();
 
   const rows = state.filteredRows;
   document.getElementById('tableCount').textContent = `${rows.length} record${rows.length !== 1 ? 's' : ''}`;
@@ -1024,6 +1026,7 @@ function renderTable() {
       <td class="dur-cell">${r['Talk Time in Auto Dial'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Total Break Duration'] || '00:00:00'}${breakAgentFor(r['User ID']) ? ` <button class="info-btn" title="Break timeline" onclick="openBreakDetailFor('${escapeHTML((r['User ID'] || '').trim().toLowerCase())}')">i</button>` : ''}</td>
       ${breakReasonCells(r, reasons)}
+      ${showTrend ? `<td class="spark-cell">${sparkline(agentKey(r))}</td>` : ''}
       ${showDates ? `<td><span class="date-badge">${r._date || '—'}</span></td>` : ''}
     `;
     tbody.appendChild(tr);
@@ -1034,7 +1037,7 @@ function renderTable() {
 function syncBreakHeaders(reasons) {
   const row = document.querySelector('#dataTable thead tr');
   row.querySelectorAll('th.break-extra').forEach(th => th.remove());
-  const before = document.getElementById('dateColumnHeader');
+  const before = document.getElementById('trendColumnHeader');
   reasons.forEach(reason => {
     const th = document.createElement('th');
     th.className = 'break-extra';
