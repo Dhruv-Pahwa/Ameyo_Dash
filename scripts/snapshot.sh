@@ -43,6 +43,13 @@ if [ -z "$DAY" ]; then
   echo "No dates found in the break sheet; filing under today's IST date $DAY." >&2
 fi
 
+# History is only trusted from this day on; earlier days are not kept.
+FIRST_DAY='2026-11-05'
+if [[ "$DAY" < "$FIRST_DAY" ]]; then
+  echo "The sheet holds $DAY, before $FIRST_DAY; not saving."
+  exit 0
+fi
+
 if cmp -s "$tmp/prod.csv" "$DIR/$DAY.csv" 2>/dev/null && cmp -s "$tmp/breaks.csv" "$DIR/$DAY-breaks.csv" 2>/dev/null; then
   echo "Sheet is unchanged for $DAY; nothing to save."
   exit 0
