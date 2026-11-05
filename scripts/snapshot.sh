@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Saves the current productivity and break sheets into history/ so the dashboard can show trends.
-# Run nightly by .github/workflows/snapshot.yml; safe to run by hand.
+# Run on a schedule by .github/workflows/snapshot.yml; safe to run by hand.
+#
+# Each snapshot is filed under the date of the data inside the sheet, not the date it was taken:
+# the sheet holds the day's Ameyo report, which can lag behind the clock. Running more than once
+# is fine: a day is rewritten only when the sheet content for that day changed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PROD_URL='https://docs.google.com/spreadsheets/d/1ZU0r6Mr0WVz-AD65Jn3uPHsnnCO9ssDepIupeFmOwsA/export?format=csv'
 BREAK_URL='https://docs.google.com/spreadsheets/d/17ortJZIjY3O08iVyW_nryiiOQlo6K0ielPSpL1oKtf8/export?format=csv'
 DIR="${HISTORY_DIR:-history}"
-DAY="$(TZ=Asia/Kolkata date +%F)"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -24,10 +27,24 @@ for f in prod breaks; do
   fi
 done
 
-# The sheet is overwritten daily: if it is identical to the last saved day, nothing new was loaded.
-prev="$(ls "$DIR"/????-??-??.csv 2>/dev/null | grep -v "/$DAY.csv" | tail -1 || true)"
-if [ -n "$prev" ] && cmp -s "$tmp/prod.csv" "$prev"; then
-  echo "Sheet is unchanged since $prev; not saving a duplicate day."
+# The day of the data: the most common dd/mm/yyyy in the break sheet's "Ready Start Time".
+DAY="$(python3 - "$tmp/breaks.csv" <<'PY'
+import collections, csv, re, sys
+days = collections.Counter()
+for row in csv.DictReader(open(sys.argv[1], encoding='utf-8-sig')):
+    m = re.match(r'\s*(\d{1,2})/(\d{1,2})/(\d{4})', row.get('Ready Start Time') or '')
+    if m:
+        days['%s-%02d-%02d' % (m.group(3), int(m.group(2)), int(m.group(1)))] += 1
+print(days.most_common(1)[0][0] if days else '')
+PY
+)"
+if [ -z "$DAY" ]; then
+  DAY="$(TZ=Asia/Kolkata date +%F)"
+  echo "No dates found in the break sheet; filing under today's IST date $DAY." >&2
+fi
+
+if cmp -s "$tmp/prod.csv" "$DIR/$DAY.csv" 2>/dev/null && cmp -s "$tmp/breaks.csv" "$DIR/$DAY-breaks.csv" 2>/dev/null; then
+  echo "Sheet is unchanged for $DAY; nothing to save."
   exit 0
 fi
 
