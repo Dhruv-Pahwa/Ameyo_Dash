@@ -12,6 +12,17 @@ PROD_URL='https://docs.google.com/spreadsheets/d/1ZU0r6Mr0WVz-AD65Jn3uPHsnnCO9ss
 BREAK_URL='https://docs.google.com/spreadsheets/d/17ortJZIjY3O08iVyW_nryiiOQlo6K0ielPSpL1oKtf8/export?format=csv'
 DIR="${HISTORY_DIR:-history}"
 
+# Scheduled runs start at unpredictable times. The evening state of the sheet is the one wanted, so a
+# scheduled run saves only between 21:00 and 23:00 IST (ONLY_IN_WINDOW is set for those runs).
+if [ -n "${ONLY_IN_WINDOW:-}" ]; then
+  # IST is UTC+5:30; computed from UTC so it does not depend on time zone data being installed.
+  now="$(date -u -d "@$(( $(date -u +%s) + 19800 ))" +%H%M)"
+  if [ "$now" -lt 2100 ] || [ "$now" -gt 2300 ]; then
+    echo "It is $now IST, outside 21:00-23:00; skipping."
+    exit 0
+  fi
+fi
+
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$DIR"
@@ -39,7 +50,7 @@ print(days.most_common(1)[0][0] if days else '')
 PY
 )"
 if [ -z "$DAY" ]; then
-  DAY="$(TZ=Asia/Kolkata date +%F)"
+  DAY="$(date -u -d "@$(( $(date -u +%s) + 19800 ))" +%F)"
   echo "No dates found in the break sheet; filing under today's IST date $DAY." >&2
 fi
 
