@@ -1,14 +1,10 @@
 name: Daily snapshot
 
-# Runs at 21:00, 22:00 and 23:00 IST (15:30, 16:30 and 17:30 UTC) so the day's data is saved
-# between 9 and 11 PM. GitHub starts scheduled runs on a best-effort basis, so one run can be late;
-# the others cover it. Extra runs are harmless: a day is only rewritten when the sheet changed,
-# and each snapshot is filed under the date inside the data.
+# Started from outside GitHub at about 10 PM IST (a request to the workflow_dispatch API from a
+# scheduler such as cron-job.org). GitHub's own schedule is not used: it started runs 5-6 hours late,
+# which saved the sheet's early-morning state instead of the evening's. A run here only saves the
+# sheet as it is at that moment, filed under the date inside the data.
 on:
-  schedule:
-    - cron: '30 15 * * *'
-    - cron: '30 16 * * *'
-    - cron: '30 17 * * *'
   workflow_dispatch:
 
 permissions:
@@ -39,7 +35,7 @@ jobs:
             echo "Nothing to commit"
             exit 0
           fi
-          days="$(git diff --cached --name-only -- history | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}\.csv' | sed 's/\.csv$//' | tr '\n' ' ')"
+          days="$(git diff --cached --name-only -- history | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | sort -u | tr '\n' ' ')"
           git commit -m "Snapshot ${days}"
           git push
           # Pushes made with the workflow token do not start a Pages build on their own.

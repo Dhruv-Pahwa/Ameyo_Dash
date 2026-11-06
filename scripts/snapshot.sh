@@ -44,7 +44,7 @@ if [ -z "$DAY" ]; then
 fi
 
 # History is only trusted from this day on; earlier days are not kept.
-FIRST_DAY='2026-11-05'
+FIRST_DAY='2026-11-06'
 if [[ "$DAY" < "$FIRST_DAY" ]]; then
   echo "The sheet holds $DAY, before $FIRST_DAY; not saving."
   exit 0
