@@ -311,6 +311,12 @@
         <button class="btn-source" data-days="15" onclick="setTrendPreset(15)">Last 15 days</button>
         <button class="btn-source" data-days="30" onclick="setTrendPreset(30)">Last 30 days</button>
       </div>
+      <label class="filter-label">FROM
+        <input type="date" class="filter-input" id="trendFrom" onchange="setTrendRange()">
+      </label>
+      <label class="filter-label">TO
+        <input type="date" class="filter-input" id="trendTo" onchange="setTrendRange()">
+      </label>
     </div>
     <p class="charts-note" id="trendsNote"></p>
     <div id="trendsBody" style="display:none">

@@ -381,6 +381,15 @@ function openBreakAgent(a) {
     `<div class="card"><span class="card-label">AUTO CALL-ON</span><span class="card-value">${secToDur(onSecs)}</span><span class="card-sub">total while ready</span></div>` +
     `<div class="card"><span class="card-label">AUTO CALL-OFF</span><span class="card-value">${secToDur(offSecs)}</span><span class="card-sub">total while ready</span></div>` +
     reasons.map(r => `<div class="card"><span class="card-label">${escapeHTML(r.toUpperCase())}</span><span class="card-value">${secToDur(a.reasons[r].secs)}</span><span class="card-sub">${a.reasons[r].count} time${a.reasons[r].count === 1 ? '' : 's'}</span></div>`).join('');
+  if (a._synthetic) {
+    document.getElementById('breakModalBody').innerHTML =
+      '<tr><td colspan="6" class="ad-note" style="padding:16px;text-align:center">' +
+      'This agent has no session-level rows in the Break sheet for this day, so only the total break ' +
+      'time (from the productivity sheet) is shown — a minute-by-minute timeline and reason split ' +
+      'aren\'t available.</td></tr>';
+    modal.classList.add('open');
+    return;
+  }
   let day = '';
   document.getElementById('breakModalBody').innerHTML = (a.timeline || []).map((e, n) => {
     // A date row whenever the day changes, so sessions on different days are not mixed up.
@@ -952,9 +961,38 @@ function applyFilters() {
   });
 
   state.filteredRows = mergeByAgent(matched);
+  backfillMissingBreakAgents(breakData(), state.filteredRows);
   renderSummary();
   renderTable();
   applyMainTab();
+}
+
+// Some agents have real break time in the productivity sheet but no session rows at all in the
+// separate Break Google Sheet export (new joiners not yet in that report, usually). Without this,
+// their break-reason columns and the break-detail "i" button silently vanish even though
+// "Total Break Duration" shows real time. Give them a single "Unspecified" bucket instead so the
+// breakdown still shows up, just without a reason split.
+function backfillMissingBreakAgents(breakSet, mainRows) {
+  if (!breakSet) return;
+  breakSet.agents = breakSet.agents.filter(a => !a._synthetic);
+  const known = new Set(breakSet.agents.map(a => a.userId));
+  const added = new Set();
+  mainRows.forEach(r => {
+    const userId = (r['User ID'] || '').trim().toLowerCase();
+    if (!userId || known.has(userId) || added.has(userId)) return;
+    const secs = timeToSeconds(r['Total Break Duration']);
+    if (secs <= 0) return;
+    added.add(userId);
+    breakSet.agents.push({
+      user: r['User Name'] || userId, userId,
+      lead: r._tl || '', type: r._type || '',
+      total: secs, reasons: { Unspecified: { secs, count: 1 } },
+      breaks: [{ reason: 'Unspecified', start: '', end: '', secs }], timeline: [],
+      _synthetic: true
+    });
+  });
+  if (added.size && !breakSet.reasons.includes('Unspecified')) breakSet.reasons.push('Unspecified');
+  breakSet.agents.sort((a, b) => b.total - a.total);
 }
 
 // One row per agent (and date): campaigns are listed together instead of repeating the agent.

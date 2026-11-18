@@ -180,6 +180,29 @@ function setTrendPreset(n, quiet) {
   if (!quiet) applyFilters();
 }
 
+// Custom range from the date pickers. No preset button stays highlighted.
+function setTrendRange() {
+  const days = trendState.days;
+  if (!days.length) return;
+  let from = document.getElementById('trendFrom').value || days[0].date;
+  let to = document.getElementById('trendTo').value || days[days.length - 1].date;
+  if (from > to) [from, to] = [to, from];
+  trendState.preset = null;
+  trendState.from = from;
+  trendState.to = to;
+  applyFilters();
+}
+
+function syncTrendRangeInputs() {
+  const days = trendState.days;
+  const from = document.getElementById('trendFrom'), to = document.getElementById('trendTo');
+  if (!from || !to || !days.length) return;
+  from.min = to.min = days[0].date;
+  from.max = to.max = days[days.length - 1].date;
+  from.value = trendState.from || '';
+  to.value = trendState.to || '';
+}
+
 function renderTrends() {
   if (state.view !== 'trends') return;
   const note = document.getElementById('trendsNote');
@@ -201,6 +224,7 @@ function renderTrends() {
   document.querySelectorAll('.trend-presets button').forEach(btn => {
     btn.classList.toggle('active', +btn.dataset.days === trendState.preset);
   });
+  syncTrendRangeInputs();
 
   const merged = new Map(trendState.days.map(d => [d.date, mergeByAgent(d.rows.filter(trendFilter))]));
   const all = trendState.days.map(d => dayStats(d, merged.get(d.date)));

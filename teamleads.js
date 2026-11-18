@@ -125,7 +125,7 @@ swezal.manhas@ambak.com	shashikant.kumar@ambak.com
 shivang@ambak.com	devesh.chaturvedi@ambak.com
 abhishek.raj@ambak.com	shashikant.kumar@ambak.com
 abhijit.chavan1@ambak.com	devesh.chaturvedi@ambak.com
-jagjeet.singh@ambak.com	sonu.rana@ambak.com
+jagjeet.singh@ambak.com	shashikant.kumar@ambak.com
 aqib.siddiqui@ambak.com	tech@ambak.com
 harish.yadav@ambak.com	sanchit.sisodiya@ambak.com
 nirav.shah@ambak.com	vijay@ambak.com
@@ -367,8 +367,24 @@ anas.siddiqui@ambak.com	syed.adil@ambak.com
 rohit.gowalkar@ambak.com	ashad.pirzade@ambak.com
 megha.kumari@ambak.com	manoj.mittal@ambak.com
 rohit.chandel@ambak.com	sanchit.sisodiya@ambak.com
-pooja.rani1@ambak.com	sanchit.sisodiya@ambak.com
-neha.3@ambak.com	sanchit.sisodiya@ambak.com
+pooja.rani1@ambak.com	manoj.mittal@ambak.com
+neha.3@ambak.com	manoj.mittal@ambak.com
+kishore.p@ambak.com	syed.adil@ambak.com
+jellavath.indu@ambak.com	syed.adil@ambak.com
+Megha.Jain1@ambak.com	anshul.kumar@ambak.com
+rishabh.jain@ambak.com	manoj.mittal@ambak.com
+siddharth.tyagi1@ambak.com	manoj.mittal@ambak.com
+tanya.singh@ambak.com	manoj.mittal@ambak.com
+zakira.shaikh@ambak.com	ashad.pirzade@ambak.com
+prachi.bhanushali@ambak.com	ashad.pirzade@ambak.com
+anchal.tripathi@ambak.com	ajay.singh@ambak.com
+anurag.chauhan@ambak.com	anshul.kumar@ambak.com
+kunal.1@ambak.com	manoj.mittal@ambak.com
+jatin.sahu@ambak.com	manoj.mittal@ambak.com
+priti.aswal@ambak.com	sunny.bari@ambak.com
+shradha.1@ambak.com	sunny.bari@ambak.com
+shruti.karmakar@ambak.com	sunny.bari@ambak.com
+arti.dhingra@ambak.com	rishabh@ambak.com
 `;
 
 // email (lowercase) -> team lead email (lowercase)
@@ -422,6 +438,12 @@ sonu.dayma@ambak.com	DDA
 sunil.rajput@ambak.com	DDA
 pooja.rani1@ambak.com	DDA
 neha.3@ambak.com	Direct
+sughar.rajpoot@ambak.com	Direct
+rishabh.jain@ambak.com	DDA
+siddharth.tyagi1@ambak.com	DDA
+tanya.singh@ambak.com	Direct
+kunal.1@ambak.com	Direct
+jatin.sahu@ambak.com	Direct
 `;
 
 const AGENT_TYPE_BY_USER = {};
