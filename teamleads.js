@@ -429,7 +429,7 @@ ankush.mittal@ambak.com	Direct
 abhishek.kumar1@ambak.com	Direct
 dil.khush@ambak.com	Direct
 megha.kumari@ambak.com	DDA
-rohit.chandel@ambak.com	Direct
+rohit.chandel@ambak.com	DDA
 komal.garg@ambak.com	DDA
 ravi.chaudhary@ambak.com	DDA
 ritika.kumari@ambak.com	DDA
