@@ -252,6 +252,16 @@
       <span class="card-value" id="cardSumBreak">0:00:00</span>
       <span class="card-sub">Aux / pause duration (all agents)</span>
     </div>
+    <div class="card">
+      <span class="card-label">AVG WRAP TIME</span>
+      <span class="card-value" id="cardWrap">0:00:00</span>
+      <span class="card-sub">After-call work (ACW) duration</span>
+    </div>
+    <div class="card">
+      <span class="card-label">AVG IDLE TIME</span>
+      <span class="card-value" id="cardIdle">0:00:00</span>
+      <span class="card-sub">Idle duration</span>
+    </div>
   </div>
 
   <!-- ============ TABLE / CHARTS TABS ============ -->
@@ -466,6 +476,20 @@
               </svg>
             </th>
             <th class="th-sortable" onclick="sortTable(9)">
+              <span>Total Idle Time</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </th>
+            <th class="th-sortable" onclick="sortTable(10)">
+              <span>Avg Wrap Time</span>
+              <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </th>
+            <th class="th-sortable" onclick="sortTable(11)">
               <span>Total Break Duration</span>
               <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 stroke-width="2">
