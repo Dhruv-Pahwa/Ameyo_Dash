@@ -999,13 +999,13 @@ function backfillMissingBreakAgents(breakSet, mainRows) {
 // Session times (staffed, auto call on/off, break) are the same in every campaign row, so the
 // largest value is used; manual talk time belongs to each campaign's calls, so it is added up.
 function mergeByAgent(rows) {
-  const TALK = ['Total Talk Time in Interval', 'Manual Calls Talk Time'];
+  const TALK = ['Total Talk Time in Interval', 'Manual Calls Talk Time', 'Total Service Time'];
   const SESSION = ['Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Break Duration', 'Total Idle Time'];
   const groups = new Map();
   rows.forEach(r => {
     const key = ((r['User ID'] || r['User Name'] || '') + '|' + (r._date || '')).toLowerCase();
     if (!groups.has(key)) {
-      groups.set(key, { ...r, _campaigns: [], _rows: [], _talk: {}, _session: {}, _wrapSec: 0, _wrapCalls: 0 });
+      groups.set(key, { ...r, _campaigns: [], _rows: [], _talk: {}, _session: {} });
       TALK.forEach(f => { groups.get(key)._talk[f] = 0; });
       SESSION.forEach(f => { groups.get(key)._session[f] = 0; });
     }
@@ -1014,10 +1014,6 @@ function mergeByAgent(rows) {
     if (r['Campaign Name'] && !g._campaigns.includes(r['Campaign Name'])) g._campaigns.push(r['Campaign Name']);
     TALK.forEach(f => { g._talk[f] += timeToSeconds(r[f]); });
     SESSION.forEach(f => { g._session[f] = Math.max(g._session[f], timeToSeconds(r[f])); });
-    // Avg. ACW Duration is a per-call average, so campaigns are combined weighted by call count.
-    const wrappedCalls = parseInt(r['Total Wrapped Calls'], 10) || 0;
-    g._wrapSec += timeToSeconds(r['Avg. ACW Duration']) * wrappedCalls;
-    g._wrapCalls += wrappedCalls;
   });
   return [...groups.values()].map(g => {
     g._campaigns.sort();
@@ -1025,7 +1021,6 @@ function mergeByAgent(rows) {
     TALK.forEach(f => { g[f] = secToDur(g._talk[f]); });
     g['Talk Time in Auto Dial'] = secToDur(Math.max(0, g._talk['Total Talk Time in Interval'] - g._talk['Manual Calls Talk Time']));
     SESSION.forEach(f => { g[f] = secToDur(g._session[f]); });
-    g['Avg. ACW Duration'] = g._wrapCalls > 0 ? secToDur(Math.round(g._wrapSec / g._wrapCalls)) : '00:00:00';
     return g;
   });
 }
@@ -1067,7 +1062,7 @@ function renderSummary() {
   document.getElementById('cardTalk').textContent = avgTime('Total Talk Time in Interval');
   document.getElementById('cardManual').textContent = avgTime('Manual Calls Talk Time');
   document.getElementById('cardBreak').textContent = avgTime('Total Break Duration');
-  document.getElementById('cardWrap').textContent = avgTime('Avg. ACW Duration');
+  document.getElementById('cardWrap').textContent = avgTime('Total Service Time');
   document.getElementById('cardIdle').textContent = avgTime('Total Idle Time');
 }
 
@@ -1099,7 +1094,7 @@ function renderTable() {
       <td class="dur-cell">${r['Manual Calls Talk Time'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Talk Time in Auto Dial'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Total Idle Time'] || '00:00:00'}</td>
-      <td class="dur-cell">${r['Avg. ACW Duration'] || '00:00:00'}</td>
+      <td class="dur-cell">${r['Total Service Time'] || '00:00:00'}</td>
       <td class="dur-cell">${r['Total Break Duration'] || '00:00:00'}${breakAgentFor(r['User ID']) ? ` <button class="info-btn" title="Break timeline" onclick="openBreakDetailFor('${escapeHTML((r['User ID'] || '').trim().toLowerCase())}')">i</button>` : ''}</td>
       ${breakReasonCells(r, reasons)}
       ${showDates ? `<td><span class="date-badge">${r._date || '—'}</span></td>` : ''}
@@ -1142,7 +1137,7 @@ function sortTable(colIdx) {
     7: 'Manual Calls Talk Time',
     8: 'Talk Time in Auto Dial',
     9: 'Total Idle Time',
-    10: 'Avg. ACW Duration',
+    10: 'Total Service Time',
     11: 'Total Break Duration'
   };
 
@@ -1325,7 +1320,7 @@ function exportCSV() {
   if (state.filteredRows.length === 0) { showToast('No data to export'); return; }
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
-  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Agent Type', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Idle Time', 'Avg Wrap Time', 'Total Break Duration'];
+  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Agent Type', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Idle Time', 'Avg Service Time', 'Total Break Duration'];
   const exReasons = (breakData() || { reasons: [] }).reasons;
   exReasons.forEach(x => headers.push(`${x} Duration`, `${x} Count`));
   if (showDates) headers.push('Date');
@@ -1345,7 +1340,7 @@ function exportCSV() {
       r['Manual Calls Talk Time'] || '00:00:00',
       r['Talk Time in Auto Dial'] || '00:00:00',
       r['Total Idle Time'] || '00:00:00',
-      r['Avg. ACW Duration'] || '00:00:00',
+      r['Total Service Time'] || '00:00:00',
       r['Total Break Duration'] || '00:00:00'
     ];
     const ba = breakAgentFor(r['User ID']);
@@ -1362,7 +1357,7 @@ function exportExcel() {
   if (state.filteredRows.length === 0) { showToast('No data to export'); return; }
   const showDates = !state.hasUserUploads && state.dates.length > 0;
 
-  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Agent Type', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Idle Time', 'Avg Wrap Time', 'Total Break Duration'];
+  const headers = ['#', 'Campaign Name', 'Agent Name', 'Team Lead', 'Agent Type', 'Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Talk Time in Interval', 'Manual Calls Talk Time', 'Talk Time in Auto Dial', 'Total Idle Time', 'Avg Service Time', 'Total Break Duration'];
   const exReasons = (breakData() || { reasons: [] }).reasons;
   exReasons.forEach(x => headers.push(`${x} Duration`, `${x} Count`));
   if (showDates) headers.push('Date');
@@ -1386,7 +1381,7 @@ function exportExcel() {
     html += `<td>${r['Manual Calls Talk Time'] || '00:00:00'}</td>`;
     html += `<td>${r['Talk Time in Auto Dial'] || '00:00:00'}</td>`;
     html += `<td>${r['Total Idle Time'] || '00:00:00'}</td>`;
-    html += `<td>${r['Avg. ACW Duration'] || '00:00:00'}</td>`;
+    html += `<td>${r['Total Service Time'] || '00:00:00'}</td>`;
     html += `<td>${r['Total Break Duration'] || '00:00:00'}</td>`;
     const ba = breakAgentFor(r['User ID']);
     exReasons.forEach(x => { html += `<td>${ba && ba.reasons[x] ? secToDur(ba.reasons[x].secs) : '00:00:00'}</td><td>${ba && ba.reasons[x] ? ba.reasons[x].count : 0}</td>`; });
