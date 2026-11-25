@@ -378,7 +378,7 @@ zakira.shaikh@ambak.com	ashad.pirzade@ambak.com
 prachi.bhanushali@ambak.com	ashad.pirzade@ambak.com
 anchal.tripathi@ambak.com	ajay.singh@ambak.com
 anurag.chauhan@ambak.com	anshul.kumar@ambak.com
-kunal.1@ambak.com	sanchit.sisodiya@ambak.com
+kunal.1@ambak.com	manoj.mittal@ambak.com
 jatin.sahu@ambak.com	manoj.mittal@ambak.com
 priti.aswal@ambak.com	sunny.bari@ambak.com
 shradha.1@ambak.com	sunny.bari@ambak.com
