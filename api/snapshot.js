@@ -1,31 +1,19 @@
-// Vercel function: saves the two Google Sheets into history/ in the GitHub repo, as one commit.
-// An outside scheduler (e.g. cron-job.org) calls it once an evening:
-//   GET https://<site>/api/snapshot?key=<SNAPSHOT_SECRET>
-// Environment variables (Vercel project settings):
-//   SNAPSHOT_SECRET  any long random string; calls without it are refused
-//   GITHUB_TOKEN     fine-grained token for this repo with "Contents: Read and write"
-//   GITHUB_REPO      optional, "owner/name" (default below)
-//   GITHUB_BRANCH    optional (default "main")
-
 const PROD_URL = 'https://docs.google.com/spreadsheets/d/1ZU0r6Mr0WVz-AD65Jn3uPHsnnCO9ssDepIupeFmOwsA/export?format=csv';
 const BREAK_URL = 'https://docs.google.com/spreadsheets/d/17ortJZIjY3O08iVyW_nryiiOQlo6K0ielPSpL1oKtf8/export?format=csv';
 const DEFAULT_REPO = 'Dhruv-Pahwa/Ameyo_Dash';
 const HISTORY_DIR = 'history';
-// History is only trusted from this day on; earlier days are not kept.
 const FIRST_DAY = '2026-11-06';
 
 async function fetchSheet(url, name) {
   const resp = await fetch(url, { redirect: 'follow', cache: 'no-store' });
   if (!resp.ok) throw new Error(`The ${name} sheet returned HTTP ${resp.status}`);
   const text = (await resp.text()).replace(/^﻿/, '');
-  // A sign-in page or an empty sheet is not a snapshot.
   if (text.split(/\r?\n/).filter(Boolean).length < 2 || /<html/i.test(text.slice(0, 300))) {
     throw new Error(`The ${name} sheet returned no data rows (is it still shared as "anyone with the link"?)`);
   }
   return text;
 }
 
-// The day of the data: the most common dd/mm/yyyy in the break sheet's "Ready Start Time" column.
 function dataDay(breakCsv) {
   const lines = breakCsv.split(/\r?\n/);
   const col = lines[0].split(',').map(h => h.trim()).indexOf('Ready Start Time');
@@ -64,7 +52,6 @@ async function takeSnapshot(env) {
     if (!resp.ok) throw new Error(`GitHub ${(opts && opts.method) || 'GET'} ${path} -> ${resp.status} ${(await resp.text()).slice(0, 200)}`);
     return resp.json();
   };
-  // Current content of a file in the repo, or null when it does not exist.
   const readRepoFile = async path => {
     const resp = await gh(`/contents/${path}?ref=${encodeURIComponent(branch)}`, { headers: { Accept: 'application/vnd.github.raw+json' } });
     if (resp.status === 404) return null;
@@ -83,10 +70,9 @@ async function takeSnapshot(env) {
   if (oldProd === prod && oldBreaks === breaks) return { saved: false, day, reason: 'Sheet is unchanged for this day; nothing to save.' };
 
   let dates = [];
-  try { dates = JSON.parse(oldIndex || '{}').dates || []; } catch (e) { /* rebuilt below */ }
+  try { dates = JSON.parse(oldIndex || '{}').dates || []; } catch (e) { }
   const indexText = JSON.stringify({ dates: [...new Set([...dates, day])].sort() }) + '\n';
 
-  // One commit for all three files, so the site is redeployed once.
   const head = await ghJson(`/git/ref/heads/${encodeURIComponent(branch)}`);
   const parent = await ghJson(`/git/commits/${head.object.sha}`);
   const files = [[prodPath, prod], [breakPath, breaks], [indexPath, indexText]];

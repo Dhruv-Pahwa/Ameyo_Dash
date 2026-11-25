@@ -1,8 +1,3 @@
-/* ============================================
-   AMEYO AGENT PERFORMANCE DASHBOARD - STYLES
-   Light Theme
-   ============================================ */
-
 :root {
   --bg-main: #f1f5f9;
   --bg-card: #ffffff;
@@ -45,7 +40,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ============ HEADER ============ */
 .header {
   display: flex;
   align-items: center;
@@ -95,7 +89,6 @@ body {
   gap: 10px;
 }
 
-/* ============ BUTTONS ============ */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -155,7 +148,6 @@ body {
   border-color: var(--accent);
 }
 
-/* ============ MULTISELECT ============ */
 .multiselect {
   position: relative;
   min-width: 200px;
@@ -249,7 +241,6 @@ body {
   flex-shrink: 0;
 }
 
-/* ============ DROP ZONE ============ */
 .drop-zone {
   margin: 20px 32px;
   padding: 48px;
@@ -289,7 +280,6 @@ body {
   font-size: 13px;
 }
 
-/* ============ FILTERS ============ */
 .filters-bar {
   padding: 20px 32px;
   display: flex;
@@ -351,14 +341,12 @@ body {
   padding-right: 32px;
 }
 
-/* ============ EXPORT BAR ============ */
 .export-bar {
   padding: 14px 32px 0;
   display: flex;
   gap: 10px;
 }
 
-/* ============ SUMMARY CARDS ============ */
 .summary-cards {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -409,7 +397,6 @@ body {
   font-weight: 400;
 }
 
-/* ============ TABLE ============ */
 .table-wrapper {
   margin: 0 32px 32px;
   background: var(--bg-card);
@@ -542,7 +529,6 @@ td:nth-child(3) {
   font-weight: 500;
 }
 
-/* Campaign badge */
 .campaign-badge {
   display: inline-block;
   padding: 3px 10px;
@@ -554,14 +540,12 @@ td:nth-child(3) {
   border: 1px solid #bfdbfe;
 }
 
-/* Duration cell styling */
 .dur-cell {
   font-variant-numeric: tabular-nums;
   font-family: 'Inter', monospace;
   letter-spacing: 0.3px;
 }
 
-/* Date badge */
 .date-badge {
   display: inline-block;
   padding: 3px 10px;
@@ -573,7 +557,6 @@ td:nth-child(3) {
   border: 1px solid #ddd6fe;
 }
 
-/* Summary row */
 tr.summary-row {
   background: #f0f9ff !important;
   font-weight: 700;
@@ -585,7 +568,6 @@ tr.summary-row td {
   font-weight: 700;
 }
 
-/* ============ EMPTY STATE ============ */
 .empty-state {
   text-align: center;
   padding: 80px 32px;
@@ -604,7 +586,6 @@ tr.summary-row td {
   display: none;
 }
 
-/* ============ RESPONSIVE ============ */
 @media (max-width: 1200px) {
   .summary-cards {
     grid-template-columns: repeat(3, 1fr);
@@ -642,7 +623,6 @@ tr.summary-row td {
   }
 }
 
-/* ============ SCROLLBAR ============ */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -661,7 +641,6 @@ tr.summary-row td {
   background: #94a3b8;
 }
 
-/* ============ ANIMATIONS ============ */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -671,7 +650,6 @@ tr.summary-row td {
   animation: fadeIn 0.4s ease forwards;
 }
 
-/* Toast notification */
 .toast {
   position: fixed;
   bottom: 24px;
@@ -697,7 +675,6 @@ tr.summary-row td {
   to { opacity: 0; transform: translateY(16px); }
 }
 
-/* ============ DATA SOURCE BAR ============ */
 .source-bar {
   display: flex;
   align-items: center;
@@ -760,7 +737,6 @@ tr.summary-row td {
 
 #breakSection .table-header { gap: 10px; flex-wrap: wrap; }
 
-/* ============ BREAK DETAIL ============ */
 .info-btn {
   width: 18px; height: 18px; margin-left: 6px;
   border-radius: 50%; border: 1px solid var(--accent);
@@ -809,7 +785,6 @@ tr.summary-row td {
 .campaign-stack:hover { -webkit-mask-image: none; mask-image: none; }
 .campaign-stack .campaign-badge { flex: none; white-space: nowrap; }
 
-/* Break breakdown polish */
 #breakCards { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 #breakSection td:nth-child(2) { color: var(--text-primary); font-weight: 500; }
 #breakSection td:nth-child(3) { color: var(--text-secondary); font-weight: 400; }
@@ -829,7 +804,6 @@ tr.row-break td { background: #fff7ed; }
 
 tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 700; font-size: 12px; letter-spacing: .3px; }
 
-/* ---- Upload popup ---- */
 .modal-backdrop {
   position: fixed; inset: 0; z-index: 1000;
   background: rgba(15, 23, 42, 0.45);
@@ -855,7 +829,6 @@ tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 7
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .modal-actions .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ---- Loading spinner ---- */
 .spinner {
   width: 48px; height: 48px;
   border: 4px solid var(--border);
@@ -865,7 +838,6 @@ tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 7
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Generate Dashboard button: .btn-primary is white-on-translucent (built for the header), so it needs its own colours on the white popup */
 #uploadSubmitBtn {
   background: var(--accent);
   color: #fff;
@@ -875,7 +847,6 @@ tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 7
 #uploadSubmitBtn:hover:not(:disabled) { background: var(--accent-hover); }
 #uploadSubmitBtn:disabled { background: var(--text-muted); border-color: var(--text-muted); opacity: 0.6; cursor: not-allowed; }
 
-/* ============ THEME TOGGLE + DARK THEME ============ */
 .header-right { display: flex; align-items: center; }
 .theme-toggle {
   width: 40px;
@@ -936,7 +907,6 @@ tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 7
 [data-theme="dark"] .ad-off-t { color: #fca5a5; }
 [data-theme="dark"] tr.row-date td { background: #111a2e; }
 
-/* ============ CHARTS TAB ============ */
 .view-tabs { display: flex; gap: 8px; padding: 0 32px 12px; }
 .charts-section { padding: 0 32px 32px; }
 .charts-note { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
@@ -959,8 +929,6 @@ tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 7
   .view-tabs, .charts-section { padding-left: 16px; padding-right: 16px; }
 }
 
-/* ============ FROZEN AGENT NAME COLUMN ============ */
-/* Agent name stays visible while scrolling sideways: column 3 in the main table, column 2 in the break table. */
 #dataTable th:nth-child(3), #dataTable td:nth-child(3),
 #breakSection table th:nth-child(2), #breakSection table td:nth-child(2) {
   position: sticky;
@@ -981,7 +949,6 @@ tr.row-date td { background: #f1f5f9; color: var(--text-primary); font-weight: 7
 [data-theme="dark"] #dataTable th:nth-child(3),
 [data-theme="dark"] #breakSection table th:nth-child(2) { background: #0f172a; }
 
-/* ============ TRENDS TAB ============ */
 .trend-controls { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; }
 .trend-controls .filter-label { display: flex; flex-direction: column; gap: 6px; }
 #trendCards { padding: 0 0 16px; }

@@ -1,7 +1,3 @@
-/* ============================================
-   AMEYO AGENT PERFORMANCE DASHBOARD - APP.JS
-   ============================================ */
-
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1ZU0r6Mr0WVz-AD65Jn3uPHsnnCO9ssDepIupeFmOwsA/export?format=csv';
 const BREAK_SHEET_URL = 'https://docs.google.com/spreadsheets/d/17ortJZIjY3O08iVyW_nryiiOQlo6K0ielPSpL1oKtf8/export?format=csv';
 const SHEET_REFRESH_MS = 5 * 60 * 1000;
@@ -18,30 +14,29 @@ const state = {
   sortDir: 'asc',
   hasUserUploads: false,
   uploadSets: [],
-  uploadDays: [],       // one entry per uploaded day: { label, set, breakData }
-  uploadDayIndex: 0,    // which uploaded day tab is active
+  uploadDays: [],
+  uploadDayIndex: 0,
   sheetSet: null,
   sheetText: '',
   sheetUpdated: null,
   breakText: '',
   liveBreak: null,
-  histDate: null,       // a saved day (YYYY-MM-DD) shown in place of the live sheet
-  pastPick: null,       // the saved day picked last, reopened by the Past data button
+  histDate: null,
+  pastPick: null,
   uploadBreak: null,
   breakAgents: [],
   breakReasons: [],
   breakTotals: {},
   breakSearch: '',
   breakFiltered: [],
-  agentType: { main: '', break: '' }, // '' = all, otherwise 'Direct' | 'DDA' | 'none' (not in the list)
+  agentType: { main: '', break: '' },
   leads: { main: { all: [], selected: new Set() }, break: { all: [], selected: new Set() } },
-  view: 'live' // 'live' (Google Sheet, or a saved day when histDate is set) | 'trends' | 'upload'
+  view: 'live'
 };
 
-// ---- Init ----
 document.addEventListener('DOMContentLoaded', () => {
   setupDragDrop();
-  updateSourceBar(); // tabs are usable right away, even while the sheet is still loading
+  updateSourceBar();
   loadBundledFiles();
   document.addEventListener('click', (e) => {
     const cms = document.getElementById('campaignMultiselect');
@@ -54,21 +49,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadBundledFiles() {
   await Promise.all([loadSheet(), loadBreakSheet()]);
-  // The sheet can finish loading after the user has already uploaded files: keep showing those.
   if (state.view === 'live' || !state.uploadDays.length) state.view = 'live';
   applyView();
   setInterval(refreshSheet, SHEET_REFRESH_MS);
 }
 
-// fetch() that gives up after 15s, so a slow or blocked sheet cannot keep the page loading forever.
 function fetchWithTimeout(url) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000);
   return fetch(url, { cache: 'no-store', signal: ctrl.signal }).finally(() => clearTimeout(timer));
 }
 
-// ---- Google Sheet source (live data) ----
-// Returns true when the sheet content changed since the last load.
 async function loadSheet() {
   try {
     const resp = await fetchWithTimeout(`${SHEET_CSV_URL}&t=${Date.now()}`);
@@ -87,7 +78,6 @@ async function loadSheet() {
   }
 }
 
-// ---- Break breakdown (Google Sheet of ready/break segments) ----
 async function loadBreakSheet() {
   try {
     const resp = await fetchWithTimeout(`${BREAK_SHEET_URL}&t=${Date.now()}`);
@@ -102,9 +92,6 @@ async function loadBreakSheet() {
   }
 }
 
-// One row per agent with total break time and time/count per break reason.
-// The export has one row per auto-call on/off interval, repeated once per campaign, so rows are
-// folded into ready segments (same ready start/end) and each break is counted once.
 function summarizeBreaks(rows) {
   const users = new Map();
   rows.forEach(r => {
@@ -116,7 +103,6 @@ function summarizeBreaks(rows) {
     if (!u.segs.has(segKey)) u.segs.set(segKey, { rs: r['Ready Start Time'], re: r['Ready End Time'], be: '', reason: 'Unspecified', ready: durToSec(r['Ready Duration']), brk: 0 });
     const g = u.segs.get(segKey);
     const brk = durToSec(r['Break Duration']);
-    // The same break can differ by a second between campaigns: keep the longest.
     if (r['Break End Time'] && brk > g.brk) {
       g.be = r['Break End Time'];
       g.brk = brk;
@@ -135,8 +121,6 @@ function summarizeBreaks(rows) {
   users.forEach((u, user) => {
     const segments = [...u.segs.values()];
     const autos = [...u.autos.values()];
-    // Auto call-on/off time counts only while the agent was ready: the intervals are clipped to the
-    // ready segment (an auto-off interval keeps running through the break that follows).
     const overlap = (a1, a2, b1, b2) => Math.max(0, Math.min(a2, b2) - Math.max(a1, b1)) / 1000;
     segments.forEach(g => {
       const rs = parseSheetTime(g.rs);
@@ -176,8 +160,6 @@ function summarizeBreaks(rows) {
   return { agents: agents.sort((a, b) => b.total - a.total), totals, reasons };
 }
 
-// Ready / break / gap events in time order. A "gap" is time that is neither ready nor on a break
-// (e.g. logged out), so a ready stretch between two breaks shows up with its auto-dial time.
 function buildTimeline(segments) {
   const segs = segments.filter(g => parseSheetTime(g.rs) !== Infinity);
   segs.sort((x, y) => parseSheetTime(x.rs) - parseSheetTime(y.rs));
@@ -204,7 +186,6 @@ function dayOnly(ms) {
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
-// Makes one break data set (live sheet or an uploaded file) the one the break view shows.
 function activateBreak(data) {
   const d = data || { agents: [], totals: {}, reasons: [] };
   state.breakAgents = d.agents;
@@ -213,12 +194,10 @@ function activateBreak(data) {
   populateLeadMulti('break', d.agents.map(a => a.lead));
 }
 
-// ---- Team lead helpers ----
 function leadEmailFor(userId) {
   return TEAM_LEAD_BY_USER[(userId || '').trim().toLowerCase()] || '';
 }
 
-// Team lead multiselect. `key` is 'main' or 'break'; options are only the leads present in `emails`.
 const LEAD_UI = {
   main: { box: 'mainLeadMulti', onChange: () => applyFilters() },
   break: { box: 'breakLeadMulti', onChange: () => renderBreakView() }
@@ -313,7 +292,6 @@ function setAgentType(key, value) {
   if (key === 'main') applyFilters(); else renderBreakView();
 }
 
-// Break data that goes with the productivity table being shown (live sheet or uploaded break file).
 function breakData() {
   if (state.view !== 'live') return state.uploadBreak;
   const h = histDay();
@@ -334,14 +312,12 @@ function typeBadge(type) {
   return type ? `<span class="type-badge type-${type.toLowerCase()}">${escapeHTML(type)}</span>` : '—';
 }
 
-// An agent passes when every lead is selected, or when their own lead is selected.
 function leadPasses(key, email) {
   const st = state.leads[key];
   if (st.selected.size === st.all.length) return true;
   return !!email && st.selected.has(email);
 }
 
-// "17/10/2026 10:03:57" (or with AM/PM) -> sortable number; unparseable values sort last.
 function parseSheetTime(str) {
   const m = (str || '').match(/(\d+)\/(\d+)\/(\d+)\s+(\d+):(\d+):(\d+)\s*([AP]M)?/i);
   if (!m) return Infinity;
@@ -359,7 +335,6 @@ function openBreakDetail(i) {
   openBreakAgent(state.breakFiltered[i]);
 }
 
-// Break details of one agent, found by login id (used from the productivity table).
 function openBreakDetailFor(userId) {
   const d = breakData();
   openBreakAgent(d && d.agents.find(x => x.userId === userId));
@@ -392,7 +367,6 @@ function openBreakAgent(a) {
   }
   let day = '';
   document.getElementById('breakModalBody').innerHTML = (a.timeline || []).map((e, n) => {
-    // A date row whenever the day changes, so sessions on different days are not mixed up.
     let dateRow = '';
     if (dayOnly(e.start) !== day) {
       day = dayOnly(e.start);
@@ -409,7 +383,6 @@ function openBreakAgent(a) {
   modal.classList.add('open');
 }
 
-// Talk time of one agent split by campaign (the table shows the total across campaigns).
 function openTalkDetail(i) {
   const a = state.filteredRows[i];
   if (!a) return;
@@ -450,7 +423,6 @@ function escapeHTML(str) {
   return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// Live view: shown below the productivity table. Uploaded break file: shown on its own.
 function renderBreakView() {
   if (state.view !== 'live') {
     ['filtersBar', 'exportBar', 'summaryCards', 'tableWrapper', 'viewTabs', 'chartsSection', 'trendsSection'].forEach(id => {
@@ -558,14 +530,12 @@ function showEmpty(message, showDrop) {
 }
 
 function applyView() {
-  // Uploaded break file with no productivity file: show the break table on its own.
   const breakOnly = state.view === 'upload' && !state.uploadSets.length && state.uploadBreak;
   if (!breakOnly) document.getElementById('breakSection').style.display = 'none';
   if (breakOnly) {
     activateBreak(state.uploadBreak);
     renderBreakView();
   } else if (state.view === 'trends') {
-    // The filters (campaign, team lead, agent type) are filled from the live sheet, or the newest saved day.
     const last = trendState.days[trendState.days.length - 1];
     const set = state.sheetSet || (last ? { fileName: last.date, dateLabel: last.date, rows: last.rows, isBundled: false } : null);
     if (set) {
@@ -602,7 +572,6 @@ function applyView() {
 
 function setView(view) {
   if (view === 'upload') {
-    // No uploaded days yet: ask for files. Otherwise show the day that was last active.
     if (!state.uploadDays.length) { openUploadModal(); return; }
     setUploadDay(state.uploadDayIndex < state.uploadDays.length ? state.uploadDayIndex : 0);
     return;
@@ -630,7 +599,6 @@ function updateSourceBar() {
   const hs = document.getElementById('historyDateSelect');
   if (hs && past) hs.value = state.histDate;
 
-  // One tab per uploaded day, between the Live tab and the Upload button.
   const tabs = document.getElementById('uploadTabs');
   if (tabs) {
     tabs.innerHTML = state.uploadDays.map((d, i) =>
@@ -640,7 +608,6 @@ function updateSourceBar() {
   bar.style.display = '';
 }
 
-// ---- CSV Parsing ----
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return { headers: [], rows: [] };
@@ -667,9 +634,6 @@ function extractDateLabel(fileName) {
   return fileName.replace('.csv', '');
 }
 
-// A day label used to group uploaded files. Handles the Ameyo "2026-10-28" filename style
-// (so a day's productivity file and break file land in the same tab) and falls back to the
-// "28th Oct" style, then to the file name.
 function fileDateLabel(fileName) {
   const iso = fileName.match(/(\d{4})[-_.](\d{1,2})[-_.](\d{1,2})/);
   if (iso) {
@@ -701,8 +665,6 @@ function secToDur(s) {
   return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)}`;
 }
 
-// Session-level export (one row per ready/break/auto-call segment) -> per agent + campaign summary rows.
-// Staffed = Auto Call-On + Auto Call-Off; this export has no manual talk time, so it is reported as 00:00:00.
 function summarizeSessionRows(rows) {
   const agg = new Map();
   const seenBreaks = new Set();
@@ -755,7 +717,6 @@ function processCSV(text, fileName, dateLabel, isBundled) {
   }
 }
 
-// ---- Merge datasets and render ----
 function mergeAndRender() {
   state.allRows = [];
   state.hasUserUploads = state.dataSets.some(ds => !ds.isBundled);
@@ -800,7 +761,6 @@ function updateDateVisibility() {
   document.getElementById('dateColumnHeader').style.display = showDates ? '' : 'none';
 }
 
-// ---- Multi-select Campaign Filter ----
 function populateCampaignMultiselect() {
   const container = document.getElementById('campaignOptions');
   container.innerHTML = '';
@@ -871,7 +831,6 @@ function updateCampaignToggleText() {
   else el.textContent = `${selected} of ${total} Campaigns`;
 }
 
-// ---- Multi-select Date Filter ----
 function populateDateMultiselect() {
   const container = document.getElementById('dateOptions');
   container.innerHTML = '';
@@ -942,7 +901,6 @@ function updateDateToggleText() {
   else el.textContent = `${selected} of ${total} Dates`;
 }
 
-// ---- Filters ----
 function applyFilters() {
   const search = document.getElementById('searchEmployee').value.toLowerCase().trim();
   const showDates = !state.hasUserUploads && state.dates.length > 0;
@@ -967,11 +925,6 @@ function applyFilters() {
   applyMainTab();
 }
 
-// Some agents have real break time in the productivity sheet but no session rows at all in the
-// separate Break Google Sheet export (new joiners not yet in that report, usually). Without this,
-// their break-reason columns and the break-detail "i" button silently vanish even though
-// "Total Break Duration" shows real time. Give them a single "Unspecified" bucket instead so the
-// breakdown still shows up, just without a reason split.
 function backfillMissingBreakAgents(breakSet, mainRows) {
   if (!breakSet) return;
   breakSet.agents = breakSet.agents.filter(a => !a._synthetic);
@@ -995,9 +948,6 @@ function backfillMissingBreakAgents(breakSet, mainRows) {
   breakSet.agents.sort((a, b) => b.total - a.total);
 }
 
-// One row per agent (and date): campaigns are listed together instead of repeating the agent.
-// Session times (staffed, auto call on/off, break) are the same in every campaign row, so the
-// largest value is used; manual talk time belongs to each campaign's calls, so it is added up.
 function mergeByAgent(rows) {
   const TALK = ['Total Talk Time in Interval', 'Manual Calls Talk Time', 'Total Service Time'];
   const SESSION = ['Total Staffed Duration', 'Auto Call-On Duration', 'Auto Call-Off Duration', 'Total Break Duration', 'Total Idle Time'];
@@ -1025,7 +975,6 @@ function mergeByAgent(rows) {
   });
 }
 
-// ---- Summary Cards ----
 function renderSummary() {
   const rows = state.filteredRows;
   const n = rows.length;
@@ -1066,7 +1015,6 @@ function renderSummary() {
   document.getElementById('cardIdle').textContent = avgTime('Total Idle Time');
 }
 
-// ---- Table Rendering ----
 function renderTable() {
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = '';
@@ -1103,7 +1051,6 @@ function renderTable() {
   });
 }
 
-// One column per break reason, right after Total Break Duration.
 function syncBreakHeaders(reasons) {
   const row = document.querySelector('#dataTable thead tr');
   row.querySelectorAll('th.break-extra').forEach(th => th.remove());
@@ -1124,7 +1071,6 @@ function breakReasonCells(r, reasons) {
   }).join('');
 }
 
-// ---- Sorting ----
 function sortTable(colIdx) {
   const colMap = {
     0: '_idx',
@@ -1178,7 +1124,6 @@ function sortTable(colIdx) {
   renderTable();
 }
 
-// ---- File Upload & Drag/Drop ----
 function openUploadModal() {
   ['prodFileInput', 'breakFileInput'].forEach(id => { document.getElementById(id).value = ''; });
   updateUploadModal();
@@ -1189,7 +1134,6 @@ function closeUploadModal() {
   document.getElementById('uploadModal').style.display = 'none';
 }
 
-// Upload is enabled as soon as at least one of the two inputs has a file.
 function updateUploadModal() {
   const count = ['prodFileInput', 'breakFileInput']
     .reduce((n, id) => n + document.getElementById(id).files.length, 0);
@@ -1204,7 +1148,6 @@ function submitUploadModal() {
   processUploadedFiles(files);
 }
 
-// Read a File as text, returning a Promise (replaces bare FileReader callbacks).
 function readFileAsText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1214,7 +1157,6 @@ function readFileAsText(file) {
   });
 }
 
-// Break exports list one row per break (they have a "Break Reason" column).
 let pendingBreakRows = [];
 function isBreakFile(text) {
   const first = (text.split('\n', 1)[0] || '').replace('\uFEFF', '').replace('\r', '');
@@ -1222,8 +1164,7 @@ function isBreakFile(text) {
 }
 
 async function processUploadedFiles(files) {
-  // Group the uploaded files by day (date in the file name). Each day becomes its own tab.
-  const days = new Map(); // label -> { label, prodRows: [], breakRows: [] }
+  const days = new Map();
   const dayFor = label => {
     if (!days.has(label)) days.set(label, { label, prodRows: [], breakRows: [] });
     return days.get(label);
@@ -1247,10 +1188,8 @@ async function processUploadedFiles(files) {
     }
   }
 
-  // Turn each day into a dataset + break summary.
   state.uploadDays = [...days.values()].map(d => ({
     label: d.label,
-    // A day with only a break/session file still gets the full dashboard: its table is built from the session rows.
     set: (d.prodRows.length || d.breakRows.length)
       ? { fileName: d.label, dateLabel: d.label, rows: d.prodRows.length ? d.prodRows : summarizeSessionRows(d.breakRows), isBundled: false }
       : null,
@@ -1277,8 +1216,6 @@ function safeSummarizeBreaks(rows) {
   catch (err) { console.error(err); return null; }
 }
 
-// Show one uploaded day's dashboard. uploadSets/uploadBreak point at the active day,
-// so the existing applyView / breakData logic works unchanged.
 function setUploadDay(i) {
   if (i < 0 || i >= state.uploadDays.length) return;
   state.uploadDayIndex = i;
@@ -1315,7 +1252,6 @@ function setupDragDrop() {
   dropZone.addEventListener('click', openUploadModal);
 }
 
-// ---- Export ----
 function exportCSV() {
   if (state.filteredRows.length === 0) { showToast('No data to export'); return; }
   const showDates = !state.hasUserUploads && state.dates.length > 0;
@@ -1403,7 +1339,6 @@ function downloadFile(content, filename, mimeType) {
   URL.revokeObjectURL(link.href);
 }
 
-// ---- Utilities ----
 function timeToSeconds(str) {
   if (!str || str === '') return 0;
   const parts = str.split(':').map(Number);
@@ -1430,7 +1365,6 @@ function showToast(msg) {
   setTimeout(() => toast.remove(), 3000);
 }
 
-// ---- Theme ----
 function toggleTheme() {
   const root = document.documentElement;
   const dark = root.getAttribute('data-theme') !== 'dark';

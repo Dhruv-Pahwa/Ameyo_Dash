@@ -1,4 +1,3 @@
-/* Agent (user ID) -> Team Lead mapping. One "agent  team lead" pair per line. */
 const TEAM_LEAD_RAW = `
 r.kumar111@ambak.com	deepak.sharma@ambak.com
 qa@ambak.com	dinesh.babu@ambak.com
@@ -387,21 +386,18 @@ shruti.karmakar@ambak.com	sunny.bari@ambak.com
 arti.dhingra@ambak.com	rishabh@ambak.com
 `;
 
-// email (lowercase) -> team lead email (lowercase)
 const TEAM_LEAD_BY_USER = {};
 TEAM_LEAD_RAW.trim().split(/\r?\n/).forEach(line => {
   const [user, lead] = line.trim().split(/\s+/);
   if (user && lead) TEAM_LEAD_BY_USER[user.toLowerCase()] = lead.toLowerCase();
 });
 
-// "sanchit.sisodiya@ambak.com" -> "Sanchit Sisodiya"
 function teamLeadName(email) {
   const local = (email || '').split('@')[0].replace(/\d+/g, '');
   return local.split(/[._]+/).filter(Boolean)
     .map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') || email;
 }
 
-/* Agent (user ID) -> Direct / DDA. Agents not listed here have no type (shown as "—"). */
 const AGENT_TYPE_RAW = `
 akhilesh.singh@ambak.com	Direct
 aman.kumar1@ambak.com	Direct

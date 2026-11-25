@@ -17,7 +17,6 @@
 </head>
 
 <body>
-  <!-- ============ HEADER ============ -->
   <header class="header">
     <div class="header-left">
       <div class="logo-icon">
@@ -50,7 +49,6 @@
     </div>
   </header>
 
-  <!-- ============ UPLOAD POPUP ============ -->
   <div class="modal-backdrop" id="uploadModal" style="display:none" onclick="if(event.target===this)closeUploadModal()">
     <div class="modal-box">
       <h3 class="modal-title">Upload files</h3>
@@ -71,7 +69,6 @@
     </div>
   </div>
 
-  <!-- ============ DATA SOURCE BAR ============ -->
   <div class="source-bar" id="sourceBar" style="display:none">
     <span id="sourceText"></span>
     <div class="source-actions">
@@ -86,7 +83,6 @@
     </div>
   </div>
 
-  <!-- ============ DRAG & DROP ZONE ============ -->
   <div class="drop-zone hidden" id="dropZone">
     <div class="drop-zone-inner">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
@@ -100,7 +96,6 @@
     </div>
   </div>
 
-  <!-- ============ FILTERS ============ -->
   <div class="filters-bar" id="filtersBar" style="display:none">
     <div class="filter-group">
       <label class="filter-label">
@@ -177,7 +172,6 @@
     </div>
   </div>
 
-  <!-- ============ EXPORT BUTTONS ============ -->
   <div class="export-bar" id="exportBar" style="display:none">
     <button class="btn btn-export" onclick="exportExcel()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -190,7 +184,6 @@
     <button class="btn btn-csv-export" onclick="exportCSV()">CSV</button>
   </div>
 
-  <!-- ============ SUMMARY CARDS ============ -->
   <div class="summary-cards" id="summaryCards" style="display:none">
     <div class="card">
       <span class="card-label">AVG STAFFED DURATION</span>
@@ -264,13 +257,11 @@
     </div>
   </div>
 
-  <!-- ============ TABLE / CHARTS TABS ============ -->
   <div class="view-tabs" id="viewTabs" style="display:none">
     <button class="btn-source active" id="tabTableBtn" onclick="setMainTab('table')">Table</button>
     <button class="btn-source" id="tabChartsBtn" onclick="setMainTab('charts')">Charts</button>
   </div>
 
-  <!-- ============ CHARTS ============ -->
   <div class="charts-section" id="chartsSection" style="display:none">
     <p class="charts-note"></p>
     <div class="charts-grid">
@@ -340,7 +331,6 @@
     </div>
   </div>
 
-  <!-- ============ TRENDS ============ -->
   <div class="charts-section" id="trendsSection" style="display:none">
     <div class="trend-controls">
       <div class="trend-presets">
@@ -396,7 +386,6 @@
     </div>
   </div>
 
-  <!-- ============ DATA TABLE ============ -->
   <div class="table-wrapper" id="tableWrapper" style="display:none">
     <div class="table-header">
       <h2 class="table-title">Agent Productivity Data</h2>
@@ -506,7 +495,6 @@
     </div>
   </div>
 
-  <!-- ============ BREAK BREAKDOWN ============ -->
   <div id="breakSection" style="display:none">
     <div class="summary-cards" id="breakCards"></div>
     <div class="table-wrapper">
@@ -534,7 +522,6 @@
     </div>
   </div>
 
-  <!-- ============ BREAK DETAIL MODAL ============ -->
   <div class="modal-backdrop" id="breakModal" onclick="if (event.target === this) closeBreakDetail()">
     <div class="modal">
       <div class="modal-head">
@@ -563,7 +550,6 @@
     </div>
   </div>
 
-  <!-- ============ AGENT TREND MODAL ============ -->
   <div class="modal-backdrop" id="agentTrendModal" onclick="if (event.target === this) closeAgentTrend()">
     <div class="modal">
       <div class="modal-head">
@@ -593,7 +579,6 @@
     </div>
   </div>
 
-  <!-- ============ TALK TIME DETAIL MODAL ============ -->
   <div class="modal-backdrop" id="talkModal" onclick="if (event.target === this) closeTalkDetail()">
     <div class="modal">
       <div class="modal-head">
@@ -621,7 +606,6 @@
     </div>
   </div>
 
-  <!-- ============ EMPTY STATE ============ -->
   <div class="empty-state" id="emptyState">
     <div class="spinner" id="loadingSpinner"></div>
     <svg id="emptyIcon" style="display:none" width="64" height="64" viewBox="0 0 24 24" fill="none"

@@ -1,6 +1,3 @@
-// ============ CHARTS TAB ============
-// Charts follow the dashboard filters: they are drawn from state.filteredRows (one row per agent).
-
 const chartState = { tab: 'table', charts: {} };
 
 const CHART_COLORS = {
@@ -16,14 +13,12 @@ function setMainTab(tab) {
   applyMainTab();
 }
 
-// Shows the Table or the Charts view. Called after every filter change.
 function applyMainTab() {
   const tabs = document.getElementById('viewTabs');
   const wrap = document.getElementById('tableWrapper');
   const section = document.getElementById('chartsSection');
   const trends = document.getElementById('trendsSection');
   if (!tabs || !wrap || !section || !trends) return;
-  // The Trends view replaces the table, cards and charts; it keeps the filters bar.
   const trendsView = state.view === 'trends';
   const charts = chartState.tab === 'charts';
   tabs.style.display = trendsView ? 'none' : '';
@@ -65,7 +60,6 @@ function drawChart(id, config) {
   chartState.charts[id] = new Chart(canvas, config);
 }
 
-// Shows a "no data" message instead of the chart.
 function setChartEmpty(id, empty) {
   const canvas = document.getElementById(id);
   if (!canvas) return;
@@ -75,7 +69,6 @@ function setChartEmpty(id, empty) {
   if (empty && chartState.charts[id]) { chartState.charts[id].destroy(); delete chartState.charts[id]; }
 }
 
-// Horizontal bar chart of agents ranked by a value in seconds.
 function agentBar(id, items, color) {
   setChartEmpty(id, items.length === 0);
   if (!items.length) return;
@@ -122,7 +115,6 @@ function renderCharts() {
   agentBar('chLowBreak', brk.filter(i => i.secs > 0).sort((a, b) => a.secs - b.secs).slice(0, N), CHART_COLORS.brk);
   agentBar('chTopTalk', [...talk].sort((a, b) => b.secs - a.secs).slice(0, N), CHART_COLORS.talk);
 
-  // Break reasons (only agents left after the filters).
   const bd = breakData();
   const ids = new Set(rows.map(r => (r['User ID'] || '').trim().toLowerCase()));
   const breakAgents = bd ? bd.agents.filter(a => ids.has(a.userId)) : [];
@@ -140,7 +132,6 @@ function renderCharts() {
     });
   }
 
-  // Auto call-on vs auto call-off (total across agents).
   const sum = f => rows.reduce((s, r) => s + timeToSeconds(r[f]), 0);
   const autoOn = sum('Auto Call-On Duration');
   const autoOff = sum('Auto Call-Off Duration');
@@ -153,7 +144,6 @@ function renderCharts() {
     });
   }
 
-  // Histogram: how many agents fall in each staffed-hours bucket.
   const hours = withStaff.map(r => timeToSeconds(r['Total Staffed Duration']) / 3600);
   const maxH = Math.max(1, Math.ceil(Math.max(0, ...hours)));
   const bins = new Array(maxH).fill(0);
@@ -171,7 +161,6 @@ function renderCharts() {
     });
   }
 
-  // Average ready / break / talk per team lead.
   const byLead = new Map();
   rows.forEach(r => {
     const k = r._tl ? teamLeadName(r._tl) : 'Not listed';

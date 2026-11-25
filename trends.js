@@ -1,14 +1,8 @@
-/* ============================================
-   PAST DATA + TRENDS - built from the nightly snapshots in history/
-   ============================================ */
-
 const HISTORY_DIR = 'history';
 const HISTORY_MAX_DAYS = 30;
 
-// status: idle | loading | ready | error. days: oldest first, one entry per saved day.
 const trendState = { status: 'idle', error: '', days: [], preset: 15, from: null, to: null, agents: new Map(), agentDates: [] };
 
-// agent(row) is a value for one merged agent row, day(stats) the team value for one day.
 const TREND_METRICS = {
   ready:    { label: 'Avg ready time',     kind: 'dur', goodUp: true,  color: CHART_COLORS.ready, agent: r => readySecs(r),                                   day: s => s.avgReady },
   brk:      { label: 'Avg break time',     kind: 'dur', goodUp: false, color: CHART_COLORS.brk,   agent: r => timeToSeconds(r['Total Break Duration']),       day: s => s.avgBreak },
@@ -39,14 +33,12 @@ function fmtTrend(kind, v) {
   return kind === 'pct' ? v.toFixed(1) + '%' : secondsToTime(Math.round(v));
 }
 
-// Hours as h:mm, small values (a minute or two of break per agent) as m:ss.
 function fmtTrendAxis(kind, v) {
   if (kind === 'pct') return v.toFixed(v < 10 ? 1 : 0) + '%';
   if (v >= 3600) return fmtHM(v);
   return `${Math.floor(v / 60)}:${String(Math.round(v % 60)).padStart(2, '0')}`;
 }
 
-// Small-scale metrics start at zero so a flat line does not get a negative axis.
 function trendYAxis(t, m, values) {
   const max = Math.max(0, ...values.filter(v => v !== null));
   const small = m.kind === 'pct' || max < 3600;
@@ -58,7 +50,6 @@ function mean(vals) {
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
 }
 
-// ---- Loading ----
 async function loadHistory() {
   if (trendState.status === 'loading') return;
   trendState.status = 'loading';
@@ -93,14 +84,13 @@ async function loadHistoryDay(date) {
     try {
       const b = await fetchWithTimeout(`${HISTORY_DIR}/${date}-breaks.csv`);
       if (b.ok) breaks = summarizeBreaks(parseCSV(await b.text()).rows);
-    } catch (e) { /* the break file is optional */ }
+    } catch (e) { }
     return { date, rows, breaks };
   } catch (e) {
     return null;
   }
 }
 
-// ---- Past data: the whole sheet of a saved day, shown like the live view ----
 function histDay() {
   return state.histDate ? trendState.days.find(d => d.date === state.histDate) || null : null;
 }
@@ -120,7 +110,6 @@ function setHistoryDate(date) {
   applyView();
 }
 
-// Past data button: the day picked last, or the newest saved day.
 function openPastData() {
   const days = trendState.days;
   if (!days.length) {
@@ -130,9 +119,6 @@ function openPastData() {
   setHistoryDate(state.pastPick && days.some(d => d.date === state.pastPick) ? state.pastPick : days[days.length - 1].date);
 }
 
-// ---- Filtering and per-day numbers ----
-// Same filters as the table. Campaigns only filter when some are unticked, because history can
-// hold campaigns that are not in today's live sheet.
 function trendFilter(r) {
   const allCampaigns = state.selectedCampaigns.size === state.campaigns.length;
   if (!allCampaigns && !state.selectedCampaigns.has(r['Campaign Name'])) return false;
@@ -152,7 +138,6 @@ function dayStats(day, merged) {
   const ready = agents.reduce((s, r) => s + readySecs(r), 0);
   const per = v => (n ? v / n : null);
 
-  // Average break time per agent, by reason, for the agents left after the filters.
   const ids = new Set(agents.map(r => (r['User ID'] || '').trim().toLowerCase()));
   const reasons = {};
   if (day.breaks) {
@@ -169,8 +154,6 @@ function dayStats(day, merged) {
   };
 }
 
-// ---- Trends view ----
-// Last N saved days, ending on the newest one.
 function setTrendPreset(n, quiet) {
   trendState.preset = n;
   const d = trendState.days;
@@ -180,7 +163,6 @@ function setTrendPreset(n, quiet) {
   if (!quiet) applyFilters();
 }
 
-// Custom range from the date pickers. No preset button stays highlighted.
 function setTrendRange() {
   const days = trendState.days;
   if (!days.length) return;
@@ -245,7 +227,6 @@ function renderTrends() {
 
 function renderTrendCards(all, shown) {
   const cur = shown.filter(s => s.n > 0);
-  // Compared with the same number of saved days right before the range.
   const start = all.indexOf(shown[0]);
   const prev = all.slice(Math.max(0, start - shown.length), start).filter(s => s.n > 0);
   document.getElementById('trendCards').innerHTML = Object.values(TREND_METRICS).map(m => {
@@ -274,7 +255,6 @@ function chartCard(id, title, sub, wide) {
     `<div class="chart-box"><canvas id="${id}"></canvas><p class="chart-empty" style="display:none">No data for these filters</p></div></div>`;
 }
 
-// The chart cards are the same every time, so they are written once.
 function ensureTrendChartCards() {
   const box = document.getElementById('trendCharts');
   if (box.children.length) return;
@@ -360,12 +340,10 @@ function renderTrendTable(shown) {
   ).join('');
 }
 
-// ---- Per-agent trends ----
 function agentKey(r) {
   return (r['User ID'] || r['User Name'] || '').trim().toLowerCase();
 }
 
-// Small inline line. Green when the agent moved the right way over the range.
 function sparkline(series, m, dates, key) {
   const pts = series.map((v, i) => ({ v, i })).filter(p => p.v !== null);
   if (pts.length < 2) return '<span class="break-none">—</span>';
