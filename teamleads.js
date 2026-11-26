@@ -15,6 +15,7 @@ riddhi.chhajer@ambak.com	pankaj.vashisht@ambak.com
 pankaj.vashisht@ambak.com	raushan.kumar@ambak.com
 sachin.malik@ambak.com	tech@ambak.com
 suraj.kumar2@ambak.com	khyati.choudhary@ambak.com
+shivay.bhateja@ambak.com	rashi@ambak.com
 kush.soni@ambak.com	aditya.bhandari@ambak.com
 vijay.thapa@ambak.com	tech@ambak.com
 jude@ambak.com	shivay.bhateja@ambak.com
@@ -241,7 +242,7 @@ yash.sharma@ambak.com	ajay.kumar1@ambak.com
 ravindra.sah@ambak.com	manoj.mittal@ambak.com
 piyush.gijare@ambak.com	kamlesh.yadav@ambak.com
 shivam.sharma@ambak.com	sanchit.sisodiya@ambak.com
-komal.garg@ambak.com	sanchit.sisodiya@ambak.com
+komal.garg@ambak.com	manoj.mittal@ambak.com
 nikita.jadhav@ambak.com	anita.shinde1@ambak.com
 jharna.mandal@ambak.com	kamlesh.yadav@ambak.com
 dhananjay.lonare@ambak.com	lukman.qureshi@ambak.com
@@ -357,6 +358,7 @@ ankush.mittal@ambak.com	manoj.mittal@ambak.com
 abhishek.kumar1@ambak.com	manoj.mittal@ambak.com
 shalu.kumari1@ambak.com	jayant.kushwah@ambak.com
 archie.verma@ambak.com	jayant.kushwah@ambak.com
+shraddha.pawar@ambak.com	ashad.pirzade@ambak.com
 dil.khush@ambak.com	sanchit.sisodiya@ambak.com
 dhruv.pahwa@ambak.com	uttara.soni@ambak.com
 ritik.chaubey@ambak.com	ashad.pirzade@ambak.com
@@ -367,12 +369,12 @@ rohit.gowalkar@ambak.com	ashad.pirzade@ambak.com
 megha.kumari@ambak.com	manoj.mittal@ambak.com
 rohit.chandel@ambak.com	sanchit.sisodiya@ambak.com
 pooja.rani1@ambak.com	manoj.mittal@ambak.com
-neha.3@ambak.com	sanchit.sisodiya@ambak.com
+neha.3@ambak.com	manoj.mittal@ambak.com
 kishore.p@ambak.com	syed.adil@ambak.com
 jellavath.indu@ambak.com	syed.adil@ambak.com
 Megha.Jain1@ambak.com	anshul.kumar@ambak.com
 rishabh.jain@ambak.com	manoj.mittal@ambak.com
-siddharth.tyagi1@ambak.com	sanchit.sisodiya@ambak.com
+siddharth.tyagi1@ambak.com	manoj.mittal@ambak.com
 tanya.singh@ambak.com	manoj.mittal@ambak.com
 zakira.shaikh@ambak.com	ashad.pirzade@ambak.com
 prachi.bhanushali@ambak.com	ashad.pirzade@ambak.com
@@ -384,6 +386,9 @@ priti.aswal@ambak.com	sunny.bari@ambak.com
 shradha.1@ambak.com	sunny.bari@ambak.com
 shruti.karmakar@ambak.com	sunny.bari@ambak.com
 arti.dhingra@ambak.com	rishabh@ambak.com
+abhijeet@ambak.com	rishabh.1@ambak.com
+kirti.watane@ambak.com	jayant.kushwah@ambak.com
+aman.upadhyay@ambak.com	jayant.kushwah@ambak.com
 `;
 
 const TEAM_LEAD_BY_USER = {};
